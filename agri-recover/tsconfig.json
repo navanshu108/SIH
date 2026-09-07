@@ -16,6 +16,6 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"],
+  "include": ["src/main.tsx", "src/App.tsx", "src/index.css", "src/vite-env.d.ts", "src/components/Layout.tsx", "src/pages/KisanPages.tsx", "src/data/cropsIndia.ts", "src/services/mockServices.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

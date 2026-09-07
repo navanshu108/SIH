@@ -1,40 +1,6 @@
-import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Sprout, LayoutDashboard, FilePlus, History, Info } from 'lucide-react';
-
-export const Layout = ({ children }: { children: React.ReactNode }) => {
-  const loc = useLocation();
-  const links = [
-    { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
-    { to: '/assessment', icon: FilePlus, label: 'New Assessment' },
-    { to: '/history', icon: History, label: 'History' },
-  ];
-
-  return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
-      <aside className="w-full md:w-64 bg-agri-900 text-white flex flex-col no-print">
-        <div className="p-6 flex items-center gap-3 border-b border-agri-700">
-          <Sprout className="w-8 h-8 text-agri-500" />
-          <div>
-            <h1 className="text-xl font-bold">AgriRecover</h1>
-            <p className="text-xs text-agri-100 opacity-80">Decision Support</p>
-          </div>
-        </div>
-        <nav className="flex-1 p-4 space-y-2">
-          {links.map(l => (
-            <Link key={l.to} to={l.to} className={`flex items-center gap-3 p-3 rounded-lg transition-colors ${loc.pathname === l.to ? 'bg-agri-700 text-white' : 'text-agri-100 hover:bg-agri-800'}`}>
-              <l.icon className="w-5 h-5" />
-              <span className="font-medium">{l.label}</span>
-            </Link>
-          ))}
-        </nav>
-        <div className="p-4 text-xs text-agri-100/50">Educational purpose only.</div>
-      </aside>
-      <main className="flex-1 overflow-y-auto p-4 md:p-8">
-        <div className="max-w-5xl mx-auto">
-          {children}
-        </div>
-      </main>
-    </div>
-  );
-};
+import { Bell, Bot, ChevronLeft, CloudSun, FileHeart, LayoutDashboard, Leaf, MapPin, Menu, Search, ShieldAlert, Sprout, Store, Wheat } from "lucide-react";
+import { NavLink, useLocation } from "react-router-dom";
+import { useState } from "react";
+const nav=[['/dashboard','Dashboard',LayoutDashboard],['/my-farm','My Farm',Sprout],['/crop-advisor','Crop Advisor',Wheat],['/crops','Crop Library',Leaf],['/weather','Weather',CloudSun],['/location','Location',MapPin],['/risk-radar','Risk Radar',ShieldAlert],['/mandi','Mandi Bhav',Store],['/schemes','Schemes',FileHeart]] as const;
+export function Layout({children}:{children:React.ReactNode}) { const [open,setOpen]=useState(false); const [search,setSearch]=useState(false); const loc=useLocation(); const guest=localStorage.getItem('kisansetu_mode')!=='account'; return <div className="app-shell"><aside className={open?'sidebar open':'sidebar'}><div className="brand"><span className="brand-mark"><Sprout size={22}/></span><span><b>KisanSetu</b><small>SMART FARM INTELLIGENCE</small></span><button className="icon mobile-only" onClick={()=>setOpen(false)}><ChevronLeft/></button></div><nav>{nav.map(([to,label,Icon])=><NavLink key={to} to={to} onClick={()=>setOpen(false)} className={({isActive})=>isActive?'active':''}><Icon size={18}/>{label}</NavLink>)}<p className="nav-label">RESILIENCE</p><NavLink to="/disaster-playbooks"><ShieldAlert size={18}/>Playbooks</NavLink><NavLink to="/relief"><FileHeart size={18}/>Relief & Claims</NavLink><NavLink to="/pest-disease"><Leaf size={18}/>Pest & Disease</NavLink></nav><div className="offline"><span/> {navigator.onLine?'Online · cached data ready':'Offline ready'}<br/><small>Last synced 10 min ago</small></div></aside><section className="workspace"><header><button className="icon mobile-only" onClick={()=>setOpen(true)} aria-label="Open menu"><Menu/></button><div><b>{nav.find(x=>x[0]===loc.pathname)?.[1]||'KisanSetu'}</b><small>{localStorage.getItem('kisansetu_location')||'Sehore, Madhya Pradesh'}</small></div><div className="header-actions"><button className="search" onClick={()=>setSearch(true)}><Search size={17}/> Search crops, schemes, guides <kbd>⌘ K</kbd></button><NavLink className="icon" to="/notifications" aria-label="Notifications"><Bell size={19}/><i/></NavLink><NavLink className="avatar" to="/login" aria-label={guest?'Sign in or continue as guest':'Account'}>{guest?'G':(localStorage.getItem('kisansetu_name')||'RS').slice(0,2).toUpperCase()}</NavLink></div></header>{children}</section>{search&&<SearchDialog close={()=>setSearch(false)}/>}<NavLink className="mitra-fab" to="/assistant"><Bot size={20}/> <span>Ask Kisan Mitra</span></NavLink><nav className="bottom-nav">{nav.slice(0,5).map(([to,label,Icon])=><NavLink key={to} to={to}><Icon size={19}/><small>{label.split(' ')[0]}</small></NavLink>)}</nav></div> }
+function SearchDialog({close}:{close:()=>void}) { const [q,setQ]=useState(''); const items=['Soybean crop guide','Soybean mandi prices','Yellow mosaic disease','PM Fasal Bima Yojana','Flood recovery playbook']; return <div className="dialog-backdrop" onMouseDown={close}><div className="search-dialog" onMouseDown={e=>e.stopPropagation()}><Search size={19}/><input autoFocus placeholder="Search KisanSetu" value={q} onChange={e=>setQ(e.target.value)}/><button onClick={close}>Esc</button><div>{items.filter(x=>x.toLowerCase().includes(q.toLowerCase())).map(x=><button key={x} onClick={close}>{x}<span>Open →</span></button>)}</div></div></div> }
