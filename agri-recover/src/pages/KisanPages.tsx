@@ -269,7 +269,6 @@ interface HazardSignal {
 function buildHazards(ctx: LiveContext): HazardSignal[] {
   const signals: HazardSignal[] = [];
 
-  // 1. Rainfall / flood
   const rain = ctx.rainProbability;
   const rainLevel: HazardLevel = rain >= 70 ? "WATCH" : rain >= 40 ? "MONITOR" : "CLEAR";
   signals.push({
@@ -286,7 +285,6 @@ function buildHazards(ctx: LiveContext): HazardSignal[] {
       : "No elevated rain signal. Continue routine monitoring.",
   });
 
-  // 2. Heatwave
   const temp = ctx.maxTemp24h;
   const heatLevel: HazardLevel = temp >= 42 ? "WATCH" : temp >= 38 ? "MONITOR" : "CLEAR";
   signals.push({
@@ -303,7 +301,6 @@ function buildHazards(ctx: LiveContext): HazardSignal[] {
       : "Temperature within normal range.",
   });
 
-  // 3. Wind
   const wind = ctx.wind;
   const windLevel: HazardLevel = wind >= 50 ? "WATCH" : wind >= 30 ? "MONITOR" : "CLEAR";
   signals.push({
@@ -320,7 +317,6 @@ function buildHazards(ctx: LiveContext): HazardSignal[] {
       : "Wind is calm. No advisory.",
   });
 
-  // 4. Dry-spell / drought indicator
   const rain7 = ctx.rain7daySum;
   const droughtLevel: HazardLevel = rain7 < 5 ? "WATCH" : rain7 < 20 ? "MONITOR" : "CLEAR";
   signals.push({
@@ -365,17 +361,15 @@ function HazardCard({ signal }: { signal: HazardSignal }) {
 
 export function RiskRadar() {
   const [context, setContext] = useState<LiveContext | undefined>(() => {
-    // Pre-populate from saved location if available
     const lat = Number(localStorage.getItem("kisansetu_lat"));
     const lng = Number(localStorage.getItem("kisansetu_lng"));
     const loc = localStorage.getItem("kisansetu_location");
-    if (lat && lng && loc) return undefined; // will fetch on mount
+    if (lat && lng && loc) return undefined;
     return undefined;
   });
   const [loading, setLoading] = useState(false);
   const didMount = useRef(false);
 
-  // Auto-load from saved location on first render
   useEffect(() => {
     if (didMount.current) return;
     didMount.current = true;
@@ -408,7 +402,6 @@ export function RiskRadar() {
         copy="Signals derived from Open-Meteo forecast model for your saved location. These are weather model outputs — not official IMD, NDMA, or government disaster alerts."
       />
 
-      {/* Location & refresh strip */}
       <Card className="risk-live">
         <div>
           <b>{context?.source === "live" ? "Live weather signal" : loading ? "Loading…" : "No location data yet"}</b>
@@ -424,7 +417,6 @@ export function RiskRadar() {
         </div>
       </Card>
 
-      {/* Hazard cards */}
       {context ? (
         <>
           <div className="hazard-grid">
@@ -449,7 +441,6 @@ export function RiskRadar() {
         <Card className="empty-state"><p>Loading weather data…</p></Card>
       )}
 
-      {/* Real map showing saved location */}
       <h2 className="section-title">Your location on the map</h2>
       <div className="card risk-map-card">
         <LocationMap
@@ -464,7 +455,6 @@ export function RiskRadar() {
         </div>
       </div>
 
-      {/* Static preparedness guides */}
       <h2 className="section-title">Preparedness guides</h2>
       <div className="alerts">
         {alerts.map(a => (
@@ -1144,7 +1134,6 @@ export function Login() {
   );
 }
 
-
 // ── Location Select ────────────────────────────────────────────────────────
 export function LocationSelect() {
   const [lat, setLat] = useState(Number(localStorage.getItem("kisansetu_lat")) || 23.2599);
@@ -1256,6 +1245,217 @@ export function LocationSelect() {
         <button className="button" onClick={save} disabled={!place && !lat}>
           {saved ? <><Check size={15} /> Saved!</> : <><MapPin size={15} /> Save selected location</>}
         </button>
+      </Card>
+    </main>
+  );
+}
+
+// ── Post-Flood Assessment ──────────────────────────────────────────────────
+export function PostFloodAssessment() {
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [floodData, setFloodData] = useState<any>(null);
+  const [formData, setFormData] = useState({
+    cropName: '', growthStage: '', floodDuration: '', waterDepth: '', soilType: '', cropCondition: ''
+  });
+  
+  const [result, setResult] = useState<{
+    risk: 'Low' | 'Moderate' | 'High';
+    action: string;
+    description: string;
+    apiInsight: string;
+  } | null>(null);
+
+  const lat = localStorage.getItem('kisansetu_lat') || '22.2014'; 
+  const lng = localStorage.getItem('kisansetu_lng') || '77.0500';
+  const locationName = localStorage.getItem('kisansetu_location') || 'Saved Farm Location';
+
+  const SUPPORTED_INDIAN_CROPS = [
+    'Soybean', 'Wheat', 'Maize', 'Cotton', 'Tomato', 'Vegetables'
+  ];
+
+  useEffect(() => {
+    const fetchFloodData = async () => {
+      try {
+        const res = await fetch(`https://flood-api.open-meteo.com/v1/flood?latitude=${lat}&longitude=${lng}&daily=river_discharge,river_discharge_mean,river_discharge_max&past_days=7&forecast_days=3`);
+        const data = await res.json();
+        setFloodData(data);
+      } catch (err) {
+        console.error("Failed to fetch Open-Meteo flood data", err);
+      }
+    };
+    fetchFloodData();
+  }, [lat, lng]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const analyzeData = (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    setTimeout(() => {
+      const duration = parseInt(formData.floodDuration) || 0;
+      let riskScore = 0;
+      let apiInsight = "Normal regional water levels detected. Local field drainage is your primary concern.";
+
+      if (duration > 48) riskScore += 3;
+      else if (duration > 24) riskScore += 2;
+      
+      if (formData.cropCondition === 'Severe Rot') riskScore += 3;
+      else if (formData.cropCondition === 'Yellowing') riskScore += 1;
+
+      if (formData.waterDepth === 'Complete') riskScore += 2;
+      if (formData.soilType === 'Clay') riskScore += 1;
+      
+      if (formData.growthStage === 'Flowering' || formData.growthStage === 'Seedling') riskScore += 1;
+
+      if (floodData && floodData.daily) {
+        const latestDischarge = floodData.daily.river_discharge[7]; 
+        const meanDischarge = floodData.daily.river_discharge_mean[7];
+        const maxDischarge = floodData.daily.river_discharge_max[7];
+
+        if (latestDischarge > meanDischarge * 2) {
+          riskScore += 2; 
+          apiInsight = `Open-Meteo Alert: Regional river discharge is significantly elevated (${latestDischarge} m³/s vs normal ${meanDischarge} m³/s). Groundwater table is high, delaying field drying.`;
+        } else if (latestDischarge > maxDischarge * 0.8) {
+          riskScore += 3; 
+          apiInsight = `Open-Meteo Alert: Critical flood levels nearby. River discharge is near maximum capacity. Prolonged waterlogging is highly likely.`;
+        }
+      }
+
+      let finalResult;
+      if (riskScore >= 6) {
+        finalResult = {
+          risk: 'High' as const,
+          action: 'Consider Replanting',
+          description: `With ${duration}hrs of flooding and severe symptoms, ${formData.cropName} recovery is unlikely. Prepare field for alternate short-duration crops (e.g., short-cycle pulses) to secure the season.`,
+          apiInsight
+        };
+      } else if (riskScore >= 3) {
+        finalResult = {
+          risk: 'Moderate' as const,
+          action: 'Monitor Closely & Apply Interventions',
+          description: `The ${formData.cropName} is stressed but salvageable. Drain excess water immediately. Apply a foliar spray of 2% Urea or Potassium Nitrate once leaves dry to revive vegetative growth.`,
+          apiInsight
+        };
+      } else {
+        finalResult = {
+          risk: 'Low' as const,
+          action: 'Continue Standard Management',
+          description: `Good chance of recovery. The ${formData.cropName} is resilient at this stage. Ensure field drainage is clear and monitor for fungal diseases over the next 3-5 days.`,
+          apiInsight
+        };
+      }
+
+      setResult(finalResult);
+      setLoading(false);
+      setStep(2);
+    }, 1500);
+  };
+
+  return (
+    <main>
+      <Title 
+        eyebrow="SMART RECOVERY TOOL" 
+        title="Post-Flood Assessment" 
+        copy="Powered by Open-Meteo Global Flood API & Crop Science to evaluate recovery risk." 
+      />
+      
+      <Card>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid #e5e7eb' }}>
+          <MapPin size={24} color="#16a34a" />
+          <div>
+            <b>Assessing risk for: {locationName}</b>
+            <p style={{ margin: 0, fontSize: '0.85rem', color: '#6b7280' }}>Auto-detected coordinates ({Number(lat).toFixed(4)}°N, {Number(lng).toFixed(4)}°E)</p>
+          </div>
+        </div>
+
+        {step === 1 ? (
+          <form onSubmit={analyzeData}>
+            <div className="form-grid">
+              <label>Crop
+                <select required name="cropName" onChange={handleInputChange} value={formData.cropName}>
+                  <option value="">Select supported crop...</option>
+                  {SUPPORTED_INDIAN_CROPS.map(crop => (
+                    <option key={crop} value={crop}>{crop}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label>Growth Stage
+                <select required name="growthStage" onChange={handleInputChange} value={formData.growthStage}>
+                  <option value="">Select Stage...</option>
+                  <option value="Seedling">Seedling / Early Vegetative</option>
+                  <option value="Vegetative">Active Vegetative</option>
+                  <option value="Flowering">Flowering</option>
+                  <option value="Fruiting">Fruiting / Maturity</option>
+                </select>
+              </label>
+
+              <label>Flood Duration (Hours)
+                <input required type="number" name="floodDuration" onChange={handleInputChange} value={formData.floodDuration} placeholder="e.g., 24" />
+              </label>
+
+              <label>Submergence Level
+                <select required name="waterDepth" onChange={handleInputChange} value={formData.waterDepth}>
+                  <option value="">Select...</option>
+                  <option value="Partial">Partial (Only stems/roots)</option>
+                  <option value="Complete">Complete (Leaves submerged)</option>
+                </select>
+              </label>
+
+              <label>Soil Type
+                <select required name="soilType" onChange={handleInputChange} value={formData.soilType}>
+                  <option value="">Select...</option>
+                  <option value="Clay">Black/Clay (Slow drainage)</option>
+                  <option value="Loam">Loam / Alluvial (Moderate)</option>
+                  <option value="Sandy">Sandy (Fast drainage)</option>
+                </select>
+              </label>
+
+              <label>Visible Symptoms
+                <select required name="cropCondition" onChange={handleInputChange} value={formData.cropCondition}>
+                  <option value="">Select...</option>
+                  <option value="Healthy">Mostly Healthy / Minor Mud</option>
+                  <option value="Yellowing">Mild/Moderate Yellowing</option>
+                  <option value="Severe Rot">Severe Wilting or Root Rot</option>
+                </select>
+              </label>
+            </div>
+
+            <button disabled={loading || !floodData} type="submit" className="button" style={{ marginTop: '1.5rem', width: '100%', justifyContent: 'center' }}>
+              {loading ? "Analyzing Data…" : "Analyze Multi-Source Recovery Risk"}
+            </button>
+            {!floodData && <p style={{ textAlign: 'center', marginTop: '1rem', fontSize: '0.85rem', color: '#6b7280' }}>Connecting to Open-Meteo Global Flood API...</p>}
+          </form>
+        ) : (
+          <div>
+            <div className="card-head" style={{ marginBottom: '1rem' }}>
+              <div>
+                <span className="eyebrow">DECISION ENGINE RESULT</span>
+                <h2>{result?.action}</h2>
+              </div>
+              <Badge level={result?.risk === 'High' ? 'HIGH RISK' : result?.risk === 'Moderate' ? 'MONITOR' : 'GOOD FIT'} />
+            </div>
+            
+            <div className="playbook">
+              <div className="play-step" style={{ marginTop: '1rem' }}>
+                <b>API</b>
+                <p>{result?.apiInsight}</p>
+              </div>
+              <div className="play-step">
+                <b>Plan</b>
+                <p>{result?.description}</p>
+              </div>
+            </div>
+
+            <button onClick={() => setStep(1)} className="button secondary" style={{ marginTop: '1.5rem' }}>
+              ← New Assessment
+            </button>
+          </div>
+        )}
       </Card>
     </main>
   );

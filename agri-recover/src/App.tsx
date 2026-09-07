@@ -1,12 +1,15 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
-// 1. Import your new chatbot component
 import AgriRecoverChatbot from './components/AgriRecoverChatbot'; 
+
+// 1. Import the new Post-Flood Assessment page
+import PostFloodAssessment from './pages/PostFloodAssessment'; 
+
 import {
   CropAdvisor, CropDetails, CropLibrary, Dashboard,
   DisasterPlaybooks, GenericPage, LocationSelect, Login, Mandi,
   MyFarm, Notifications, PestDisease, Relief, RiskRadar, Schemes, Weather,
-} from './pages/KisanPages'; // 2. Removed 'Assistant' from this import list
+} from './pages/KisanPages'; 
 
 /** Redirects to /login if the user has never completed onboarding. */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -53,7 +56,9 @@ export default function App() {
             <Route path="/login"             element={<Login />} />
             <Route path="/location"          element={<LocationSelect />} />
             
-            {/* 3. Updated the assistant route to use the new chatbot */}
+            {/* 2. Added the new assessment route */}
+            <Route path="/post-flood-assessment" element={<PostFloodAssessment />} /> 
+
             <Route path="/assistant"         element={<AgriRecoverChatbot />} /> 
           </Routes>
         </RequireAuth>
