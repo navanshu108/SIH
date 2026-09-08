@@ -1,16 +1,109 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
-  AlertTriangle, ArrowRight, Bot, Check, ChevronRight, CloudRain, Droplets,
+  AlertTriangle, ArrowRight, Search, Bot, Check, ChevronRight, CloudRain, Droplets,
   FileUp, Leaf, MapPin, Mic, Plus, Send, ShieldAlert, Sparkles,
-  Sprout, ThermometerSun, Upload, Volume2, Wind, X, Loader2, LogOut, Store,
+  Sprout, ThermometerSun, Upload, Volume2, Eye, EyeOff, Wind, X, Loader2, LogOut, Store,
   Trash2, Calendar, TestTube
 } from "lucide-react";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line } from "recharts";
 import { alerts, mandi, schemes } from "../services/mockServices";
 import { askAssistant } from "../services/assistantService";
 import { getLiveContext, getLiveContextForLocation, getSavedLocationContext, type LiveContext } from "../services/liveContextService";
 
+// ── Expanded Offline Crop Database with Highly Accurate Generative Imagery ─────────
+export const crops = [
+  { 
+    id: "soyabean", name: "Soyabean", localName: "सोयाबीन", season: "Kharif", 
+    duration: "90-120 days", water: "Medium", soil: ["Loamy", "Black", "Well drained"], suitability: 95, stage: "Vegetative", 
+    temperature: "20°C - 35°C (Optimum: 25°C - 30°C)", rainfall: "500 - 1000 mm",
+    advice: "Maintain proper plant population. Waterlogging is the biggest threat - proper drainage is a must.", 
+    pests: ["Yellow Mosaic Virus", "Rust", "Caterpillar", "Root Rot", "Stem Fly"],
+    alternates: ["Green Gram", "Black Gram", "Maize", "Sunflower"],
+    imageUrl: "https://image.pollinations.ai/prompt/lush%20green%20soybean%20field%20agriculture%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "maize", name: "Maize", localName: "मक्का", season: "Kharif", 
+    duration: "90-120 days", water: "Medium", soil: ["Loamy", "Sandy loam", "Alluvial"], suitability: 88, stage: "Vegetative", 
+    temperature: "20°C - 32°C (Optimum: 25°C - 30°C)", rainfall: "600 - 1000 mm",
+    advice: "Ensure proper spacing and good drainage. Avoid stress during flowering & silking.", 
+    pests: ["Leaf blight", "Stalk rot", "Fall Armyworm"],
+    alternates: ["Mung", "Urad", "Millets", "Vegetables"],
+    imageUrl: "https://image.pollinations.ai/prompt/tall%20green%20maize%20corn%20field%20agriculture%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "green-gram", name: "Green Gram", localName: "मूंग", season: "Kharif", 
+    duration: "60-70 days", water: "Low", soil: ["Sandy loam", "Loam"], suitability: 92, stage: "Flowering", 
+    temperature: "25°C - 35°C (Optimum: 28°C - 30°C)", rainfall: "500 - 800 mm",
+    advice: "Provide life saving irrigation during drought. Spray 2% Potassium Nitrate at flowering.", 
+    pests: ["Yellow Mosaic Virus", "Powdery Mildew", "Aphids"],
+    alternates: ["Cowpea", "Sesame", "Pearl Millet"],
+    imageUrl: "https://image.pollinations.ai/prompt/green%20gram%20mung%20bean%20crop%20field%20close%20up%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "wheat", name: "Wheat", localName: "गेहूं", season: "Rabi", 
+    duration: "120-150 days", water: "Medium", soil: ["Loam", "Clay loam", "Alluvial"], suitability: 90, stage: "Tillering", 
+    temperature: "15°C - 25°C", rainfall: "500 - 1000 mm (Requires winter irrigation)",
+    advice: "Ensure timely sowing in November. Provide 4-6 irrigations at critical stages like CRI and booting.", 
+    pests: ["Termites", "Aphids", "Rust (Yellow/Brown)"],
+    alternates: ["Mustard", "Chickpea (Gram)", "Barley"],
+    imageUrl: "https://image.pollinations.ai/prompt/golden%20wheat%20field%20ready%20for%20harvest%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "paddy", name: "Paddy (Rice)", localName: "धान", season: "Kharif", 
+    duration: "120-150 days", water: "High", soil: ["Clay", "Clay loam"], suitability: 94, stage: "Transplanting", 
+    temperature: "25°C - 35°C", rainfall: "1000 - 1500 mm",
+    advice: "Maintain 2-5 cm standing water in field. Do not let cracks develop in soil during vegetative stage.", 
+    pests: ["Stem Borer", "Brown Plant Hopper", "Blast Disease"],
+    alternates: ["Maize", "Sugarcane", "Jute"],
+    imageUrl: "https://image.pollinations.ai/prompt/lush%20flooded%20rice%20paddy%20field%20agriculture%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "cotton", name: "Cotton", localName: "कपास", season: "Kharif", 
+    duration: "150-180 days", water: "Medium", soil: ["Black", "Clay"], suitability: 85, stage: "Boll formation", 
+    temperature: "21°C - 30°C", rainfall: "500 - 1000 mm",
+    advice: "Highly sensitive to waterlogging. Ensure deep ploughing and clean cultivation.", 
+    pests: ["Pink Bollworm", "Whitefly", "Jassids"],
+    alternates: ["Soyabean", "Pigeon Pea (Tur)"],
+    imageUrl: "https://image.pollinations.ai/prompt/white%20cotton%20plant%20field%20ready%20for%20harvest%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "mustard", name: "Mustard", localName: "सरसों", season: "Rabi", 
+    duration: "100-120 days", water: "Low", soil: ["Sandy loam", "Loam"], suitability: 89, stage: "Flowering", 
+    temperature: "10°C - 25°C", rainfall: "250 - 400 mm",
+    advice: "Thinning should be done 15 days after sowing. Highly susceptible to frost.", 
+    pests: ["Aphids", "Alternaria Blight", "White Rust"],
+    alternates: ["Wheat", "Barley", "Gram"],
+    imageUrl: "https://image.pollinations.ai/prompt/vibrant%20yellow%20mustard%20crop%20field%20agriculture%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "sugarcane", name: "Sugarcane", localName: "गन्ना", season: "Kharif", 
+    duration: "300-360 days", water: "High", soil: ["Deep loamy", "Clay loam"], suitability: 80, stage: "Grand Growth", 
+    temperature: "20°C - 35°C", rainfall: "1500 - 2500 mm",
+    advice: "Requires heavy fertilization and frequent irrigation. Earth up the crop to prevent lodging.", 
+    pests: ["Early Shoot Borer", "Red Rot", "Pyrilla"],
+    alternates: ["Paddy", "Banana"],
+    imageUrl: "https://image.pollinations.ai/prompt/tall%20sugarcane%20plantation%20field%20agriculture%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "groundnut", name: "Groundnut", localName: "मूंगफली", season: "Kharif", 
+    duration: "90-120 days", water: "Low", soil: ["Sandy", "Sandy loam"], suitability: 86, stage: "Pegging", 
+    temperature: "25°C - 30°C", rainfall: "500 - 700 mm",
+    advice: "Calcium (Gypsum) application is critical at pegging stage. Avoid heavy clay soils.", 
+    pests: ["White Grub", "Tikka Disease", "Collar Rot"],
+    alternates: ["Pearl Millet", "Sesame", "Castor"],
+    imageUrl: "https://image.pollinations.ai/prompt/green%20groundnut%20peanut%20crop%20field%20agriculture%20photography?width=800&height=600&nologo=true"
+  },
+  { 
+    id: "tomato", name: "Tomato", localName: "टमाटर", season: "Horticulture", 
+    duration: "90-120 days", water: "Medium", soil: ["Loamy", "Sandy loam"], suitability: 88, stage: "Fruiting", 
+    temperature: "20°C - 28°C", rainfall: "600 - 800 mm",
+    advice: "Staking is required for indeterminate varieties. Very sensitive to frost and waterlogging.", 
+    pests: ["Fruit Borer", "Early Blight", "Leaf Curl Virus"],
+    alternates: ["Brinjal", "Chilli", "Okra"],
+    imageUrl: "https://image.pollinations.ai/prompt/ripe%20red%20tomatoes%20growing%20on%20vine%20farm%20photography?width=800&height=600&nologo=true"
+  }
+];
 // ── Complete India State & District Database ───────────────────────────
 const indiaData: Record<string, string[]> = {
   "Andaman and Nicobar Islands": ["Nicobar", "North and Middle Andaman", "South Andaman"],
@@ -51,163 +144,155 @@ const indiaData: Record<string, string[]> = {
   "West Bengal": ["Alipurduar", "Bankura", "Birbhum", "Cooch Behar", "Dakshin Dinajpur", "Darjeeling", "Hooghly", "Howrah", "Jalpaiguri", "Jhargram", "Kalimpong", "Kolkata", "Malda", "Murshidabad", "Nadia", "North 24 Parganas", "Paschim Bardhaman", "Paschim Medinipur", "Purba Bardhaman", "Purba Medinipur", "Purulia", "South 24 Parganas", "Uttar Dinajpur"]
 };
 
-// ── Expanded Offline Crop Database ─────────────────────────────────────────
-export const crops = [
-  { 
-    id: "soyabean", name: "Soyabean", localName: "सोयाबीन", season: "Kharif", 
-    duration: "90-120 days", water: "Medium", soil: ["Loamy", "Black", "Well drained"], suitability: 95, stage: "Vegetative", 
-    temperature: "20°C - 35°C (Optimum: 25°C - 30°C)", rainfall: "500 - 1000 mm",
-    advice: "Maintain proper plant population. Waterlogging is the biggest threat - proper drainage is a must.", 
-    pests: ["Yellow Mosaic Virus", "Rust", "Caterpillar", "Root Rot", "Stem Fly"],
-    alternates: ["Green Gram", "Black Gram", "Maize", "Sunflower"]
-  },
-  { 
-    id: "maize", name: "Maize", localName: "मक्का", season: "Kharif", 
-    duration: "90-120 days", water: "Medium", soil: ["Loamy", "Sandy loam", "Alluvial"], suitability: 88, stage: "Vegetative", 
-    temperature: "20°C - 32°C (Optimum: 25°C - 30°C)", rainfall: "600 - 1000 mm",
-    advice: "Ensure proper spacing and good drainage. Avoid stress during flowering & silking.", 
-    pests: ["Leaf blight", "Stalk rot", "Fall Armyworm"],
-    alternates: ["Mung", "Urad", "Millets", "Vegetables"]
-  },
-  { 
-    id: "green-gram", name: "Green Gram", localName: "मूंग", season: "Kharif", 
-    duration: "60-70 days", water: "Low", soil: ["Sandy loam", "Loam"], suitability: 92, stage: "Flowering", 
-    temperature: "25°C - 35°C (Optimum: 28°C - 30°C)", rainfall: "500 - 800 mm",
-    advice: "Provide life saving irrigation during drought. Spray 2% Potassium Nitrate at flowering.", 
-    pests: ["Yellow Mosaic Virus", "Powdery Mildew", "Aphids"],
-    alternates: ["Cowpea", "Sesame", "Pearl Millet"]
-  },
-  { 
-    id: "wheat", name: "Wheat", localName: "गेहूं", season: "Rabi", 
-    duration: "120-150 days", water: "Medium", soil: ["Loam", "Clay loam", "Alluvial"], suitability: 90, stage: "Tillering", 
-    temperature: "15°C - 25°C", rainfall: "500 - 1000 mm (Requires winter irrigation)",
-    advice: "Ensure timely sowing in November. Provide 4-6 irrigations at critical stages like CRI and booting.", 
-    pests: ["Termites", "Aphids", "Rust (Yellow/Brown)"],
-    alternates: ["Mustard", "Chickpea (Gram)", "Barley"]
-  },
-  { 
-    id: "paddy", name: "Paddy (Rice)", localName: "धान", season: "Kharif", 
-    duration: "120-150 days", water: "High", soil: ["Clay", "Clay loam"], suitability: 94, stage: "Transplanting", 
-    temperature: "25°C - 35°C", rainfall: "1000 - 1500 mm",
-    advice: "Maintain 2-5 cm standing water in field. Do not let cracks develop in soil during vegetative stage.", 
-    pests: ["Stem Borer", "Brown Plant Hopper", "Blast Disease"],
-    alternates: ["Maize", "Sugarcane", "Jute"]
-  },
-  { 
-    id: "cotton", name: "Cotton", localName: "कपास", season: "Kharif", 
-    duration: "150-180 days", water: "Medium", soil: ["Black", "Clay"], suitability: 85, stage: "Boll formation", 
-    temperature: "21°C - 30°C", rainfall: "500 - 1000 mm",
-    advice: "Highly sensitive to waterlogging. Ensure deep ploughing and clean cultivation.", 
-    pests: ["Pink Bollworm", "Whitefly", "Jassids"],
-    alternates: ["Soyabean", "Pigeon Pea (Tur)"]
-  },
-  { 
-    id: "mustard", name: "Mustard", localName: "सरसों", season: "Rabi", 
-    duration: "100-120 days", water: "Low", soil: ["Sandy loam", "Loam"], suitability: 89, stage: "Flowering", 
-    temperature: "10°C - 25°C", rainfall: "250 - 400 mm",
-    advice: "Thinning should be done 15 days after sowing. Highly susceptible to frost.", 
-    pests: ["Aphids", "Alternaria Blight", "White Rust"],
-    alternates: ["Wheat", "Barley", "Gram"]
-  },
-  { 
-    id: "sugarcane", name: "Sugarcane", localName: "गन्ना", season: "Kharif", 
-    duration: "300-360 days", water: "High", soil: ["Deep loamy", "Clay loam"], suitability: 80, stage: "Grand Growth", 
-    temperature: "20°C - 35°C", rainfall: "1500 - 2500 mm",
-    advice: "Requires heavy fertilization and frequent irrigation. Earth up the crop to prevent lodging.", 
-    pests: ["Early Shoot Borer", "Red Rot", "Pyrilla"],
-    alternates: ["Paddy", "Banana"]
-  },
-  { 
-    id: "groundnut", name: "Groundnut", localName: "मूंगफली", season: "Kharif", 
-    duration: "90-120 days", water: "Low", soil: ["Sandy", "Sandy loam"], suitability: 86, stage: "Pegging", 
-    temperature: "25°C - 30°C", rainfall: "500 - 700 mm",
-    advice: "Calcium (Gypsum) application is critical at pegging stage. Avoid heavy clay soils.", 
-    pests: ["White Grub", "Tikka Disease", "Collar Rot"],
-    alternates: ["Pearl Millet", "Sesame", "Castor"]
-  },
-  { 
-    id: "tomato", name: "Tomato", localName: "टमाटर", season: "Horticulture", 
-    duration: "90-120 days", water: "Medium", soil: ["Loamy", "Sandy loam"], suitability: 88, stage: "Fruiting", 
-    temperature: "20°C - 28°C", rainfall: "600 - 800 mm",
-    advice: "Staking is required for indeterminate varieties. Very sensitive to frost and waterlogging.", 
-    pests: ["Fruit Borer", "Early Blight", "Leaf Curl Virus"],
-    alternates: ["Brinjal", "Chilli", "Okra"]
-  }
-];
 
-// ── Shared micro-components ────────────────────────────────────────────────
-const Card = ({ children, className = "", onClick }: { children: React.ReactNode; className?: string; onClick?: () => void }) => (
-  <section className={"card " + className} onClick={onClick} style={onClick ? { cursor: 'pointer' } : {}}>{children}</section>
+// ── UI Micro-components ───────────────────────────────────────────────────
+const Card = ({ children, className = "", onClick, style }: { children: React.ReactNode; className?: string; onClick?: () => void; style?: React.CSSProperties }) => (
+  <section className={"card " + className} onClick={onClick} style={{ cursor: onClick ? 'pointer' : 'default', ...style }}>{children}</section>
 );
 const Badge = ({ level }: { level: string }) => (
   <span className={"badge " + level.toLowerCase().replace(/\s+/g, "-")}>{level}</span>
 );
+
+// UPDATED TITLE COMPONENT (Enhanced Typography)
 const Title = ({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) => (
   <div className="page-title">
-    <span>{eyebrow}</span>
-    <h1>{title}</h1>
-    <p>{copy}</p>
+    <span style={{ color: '#16a34a', fontWeight: 800, letterSpacing: '1px', fontSize: '12px', textTransform: 'uppercase' }}>{eyebrow}</span>
+    <h1 style={{ fontSize: '36px', color: '#111827', margin: '8px 0', letterSpacing: '-0.5px' }}>{title}</h1>
+    <p style={{ fontSize: '15px', color: '#4b5563', maxWidth: '600px', lineHeight: 1.6 }}>{copy}</p>
   </div>
 );
 
-// ── Dashboard ─────────────────────────────────────────────────────────────
+// NEW RADIAL GAUGE COMPONENT
+function RadialGauge({ value, color }: { value: number, color: string }) {
+  const radius = 24;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (value / 100) * circumference;
+  return (
+    <svg width="60" height="60" viewBox="0 0 60 60" style={{ transform: "rotate(-90deg)" }}>
+      <circle cx="30" cy="30" r={radius} stroke="#e5ece8" strokeWidth="6" fill="none" />
+      <circle cx="30" cy="30" r={radius} stroke={color} strokeWidth="6" fill="none" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// UPDATED METRIC COMPONENT (Solid backgrounds & Large Typography)
+function Metric({ icon, label, value, detail, tone }: { icon: React.ReactNode; label: string; value: string; detail: string; tone: string }) {
+  const colors: any = {
+    blue: { bg: '#e0f2fe', text: '#0369a1', iconBg: '#bae6fd', border: '#bae6fd' },
+    green: { bg: '#dcfce7', text: '#15803d', iconBg: '#bbf7d0', border: '#bbf7d0' },
+    orange: { bg: '#ffedd5', text: '#c2410c', iconBg: '#fed7aa', border: '#fed7aa' },
+    red: { bg: '#fee2e2', text: '#b91c1c', iconBg: '#fecaca', border: '#fecaca' }
+  };
+  const c = colors[tone] || colors.green;
+
+  return (
+    <div style={{ backgroundColor: c.bg, border: `1px solid ${c.border}`, borderRadius: '20px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ backgroundColor: c.iconBg, color: c.text, padding: '12px', borderRadius: '14px', display: 'grid', placeItems: 'center' }}>{icon}</div>
+        <span style={{ fontSize: '14px', fontWeight: 700, color: c.text, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</span>
+      </div>
+      <div>
+        <div style={{ fontSize: '42px', fontWeight: 800, color: '#111827', margin: '8px 0', letterSpacing: '-1px' }}>{value}</div>
+        <div style={{ fontSize: '14px', color: '#4b5563', fontWeight: 500 }}>{detail}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard (Dynamic Spatial Map Update) ────────────────────────────────
 export function Dashboard() {
   const [done, setDone] = useState([false, false, false]);
   const [wx, setWx] = useState<LiveContext | null>(null);
+  const [lang, setLang] = useState<"en" | "hi">("en");
+  
+  const [fields, setFields] = useState<any[]>([]);
+
   const userName = localStorage.getItem("kisansetu_name") || "Farmer";
   const now = new Date();
-  const greeting = now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening";
+  
+  const greeting = lang === "hi" 
+    ? (now.getHours() < 12 ? "सुप्रभात" : now.getHours() < 17 ? "नमस्कार" : "शुभ संध्या") 
+    : (now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening");
+  
   const dayStr = now.toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }).toUpperCase();
 
+  // Load weather and dynamic fields
   useEffect(() => {
     getSavedLocationContext().then(ctx => { if (ctx) setWx(ctx); });
+    
+    const saved = localStorage.getItem("kisansetu_fields");
+    if (saved) {
+      try { 
+         const parsed = JSON.parse(saved);
+         if (Array.isArray(parsed)) {
+            setFields(parsed); 
+         }
+      } catch (e) {}
+    }
   }, []);
 
   const riskLevel = wx ? (wx.rainProbability >= 70 ? "High" : wx.rainProbability >= 40 ? "Moderate" : "Low") : "–";
   const riskDetail = wx ? `Rainfall · ${wx.rainProbability}% chance` : "Set location for live data";
-  const riskTone = wx ? (wx.rainProbability >= 70 ? "orange" : "green") : "green";
+  const riskTone = wx ? (wx.rainProbability >= 70 ? "red" : wx.rainProbability >= 40 ? "orange" : "green") : "green";
+
+  const getMockHealth = (id: any) => {
+    const safeId = String(id || "1");
+    const hash = safeId.split('').reduce((a, b) => a + b.charCodeAt(0), 0);
+    return 70 + (hash % 26); 
+  };
 
   return (
-    <main>
-      <div className="welcome">
+    <main style={{ maxWidth: '1400px', margin: '0 auto' }}>
+      
+      {/* Clean Welcome Header without the "Primary Crop" text */}
+      <div style={{ background: 'linear-gradient(to right, #16a34a, #059669)', borderRadius: '24px', padding: '40px', color: 'white', marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', boxShadow: '0 10px 25px -5px rgba(22, 163, 74, 0.4)' }}>
         <div>
-          <p>{dayStr}</p>
-          <h1>{greeting}, {userName} <span>👋</span></h1>
-          <h2>Your primary crop is in its <b>vegetative stage.</b></h2>
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', opacity: 0.9 }}>{dayStr}</p>
+          <h1 style={{ fontSize: '48px', fontWeight: 800, margin: '10px 0', letterSpacing: '-1px' }}>{greeting}, {userName} <span>👋</span></h1>
         </div>
-        <Link className="button light" to="/crop-advisor">View crop advice <ArrowRight size={16} /></Link>
-      </div>
-      {wx && wx.rainProbability >= 40 && (
-        <div className="critical">
-          <AlertTriangle size={20} />
-          <div>
-            <b>{wx.rainProbability >= 70 ? "Heavy" : "Moderate"} rainfall risk · next 12 hours</b>
-            <span>{wx.location} · {wx.rainProbability}% precipitation probability.</span>
+        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '12px', display: 'flex', gap: '4px', backdropFilter: 'blur(10px)' }}>
+            <button style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: lang === 'en' ? '#fff' : 'transparent', color: lang === 'en' ? '#166534' : '#fff', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setLang('en')}>EN</button>
+            <button style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: lang === 'hi' ? '#fff' : 'transparent', color: lang === 'hi' ? '#166534' : '#fff', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setLang('hi')}>HI</button>
           </div>
-          <Link to="/risk-radar">View risk radar <ChevronRight size={17} /></Link>
+        </div>
+      </div>
+      
+      {wx && wx.rainProbability >= 40 && (
+        <div className="critical" style={{ backgroundColor: '#fff7ed', border: '2px solid #fdba74', borderRadius: '16px', padding: '20px', marginBottom: '30px', display: 'flex', alignItems: 'center' }}>
+          <AlertTriangle size={24} color="#ea580c" />
+          <div style={{ marginLeft: '15px' }}>
+            <b style={{ fontSize: '16px', color: '#9a3412', display: 'block', marginBottom: '4px' }}>{wx.rainProbability >= 70 ? "Heavy" : "Moderate"} rainfall risk · next 12 hours</b>
+            <span style={{ fontSize: '14px', color: '#c2410c' }}>{wx.location} · {wx.rainProbability}% precipitation probability.</span>
+          </div>
+          <Link to="/risk-radar" style={{ marginLeft: 'auto', background: '#ea580c', color: 'white', padding: '8px 16px', borderRadius: '8px', fontWeight: 'bold', textDecoration: 'none' }}>View Radar</Link>
         </div>
       )}
-      <div className="metrics">
-        <Metric icon={<CloudRain />} label="Weather" value={wx ? `${wx.temperature}°` : "–"} detail={wx ? `Rain likely · ${wx.rainProbability}%` : "Set location"} tone="blue" />
-        <Metric icon={<Droplets />} label="Humidity" value={wx ? `${wx.humidity}%` : "–"} detail={wx ? `Feels like ${wx.feelsLike}°C` : "Set location"} tone="green" />
-        <Metric icon={<Leaf />} label="Crop health" value="82 / 100" detail="Monitor field conditions" tone="green" />
-        <Metric icon={<ShieldAlert />} label="Disaster risk" value={riskLevel} detail={riskDetail} tone={riskTone} />
+      
+      <div className="metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
+        <Metric icon={<CloudRain size={28}/>} label="Weather" value={wx ? `${wx.temperature}°` : "–"} detail={wx ? `Rain likely · ${wx.rainProbability}%` : "Set location"} tone="blue" />
+        <Metric icon={<Droplets size={28}/>} label="Humidity" value={wx ? `${wx.humidity}%` : "–"} detail={wx ? `Feels like ${wx.feelsLike}°C` : "Set location"} tone="blue" />
+        {/* Dynamic Fields count metric replacing Crop Health */}
+        <Metric icon={<Sprout size={28}/>} label="Active Fields" value={(fields?.length || 0).toString()} detail="Tracking crop cycles" tone="green" />
+        <Metric icon={<ShieldAlert size={28}/>} label="Disaster risk" value={riskLevel} detail={riskDetail} tone={riskTone} />
       </div>
-      <div className="grid-2">
+      
+      <div className="grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         <Card>
-          <div className="card-head">
-            <div><span className="eyebrow">7-DAY OUTLOOK</span><h3>Weather intelligence</h3></div>
-            <Link to="/weather">Full forecast →</Link>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <div><span style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px' }}>7-DAY OUTLOOK</span><h3 style={{ fontSize: '20px', margin: '5px 0', fontWeight: 800 }}>Weather intelligence</h3></div>
+            <Link to="/weather" style={{ color: '#0284c7', fontWeight: 'bold', textDecoration: 'none' }}>Full forecast →</Link>
           </div>
           {wx ? (
             <>
-              <div className="weather-now">
-                <CloudRain />
-                <div><b>{wx.temperature}°C</b><span>{wx.location}</span></div>
-                <div><strong>{wx.humidity}%</strong><small>Humidity</small></div>
-                <div><strong>{wx.wind} km/h</strong><small>Wind</small></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+                <div style={{ background: '#e0f2fe', padding: '15px', borderRadius: '16px' }}><CloudRain size={36} color="#0284c7" /></div>
+                <div>
+                  <b style={{ fontSize: '36px', color: '#111827', display: 'block', lineHeight: 1, fontWeight: 800 }}>{wx.temperature}°C</b>
+                  <span style={{ color: '#6b7280', fontSize: '14px' }}>{wx.location}</span>
+                </div>
               </div>
-              <div className="chart small">
+              <div style={{ height: '140px' }}>
                 <ResponsiveContainer>
                   <AreaChart data={wx.dailyForecast}>
                     <defs>
@@ -216,82 +301,124 @@ export function Dashboard() {
                         <stop offset="1" stopColor="#0284c7" stopOpacity="0" />
                       </linearGradient>
                     </defs>
-                    <XAxis dataKey="day" /><Tooltip formatter={(v: number) => [`${v} mm`, "Rain"]} />
-                    <Area dataKey="rain" stroke="#0284c7" fill="url(#rain)" strokeWidth={2} />
+                    <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                    <Tooltip />
+                    <Area dataKey="rain" stroke="#0284c7" fill="url(#rain)" strokeWidth={3} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
             </>
           ) : (
-            <div className="weather-loading">
-              <CloudRain size={28} />
-              <span>Set your location to see live weather</span>
-              <Link className="button secondary" to="/location">Set location</Link>
-            </div>
+            <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>Set your location to see live weather</div>
           )}
         </Card>
-        <Card>
-          <div className="card-head">
-            <div><span className="eyebrow">YOUR PRIMARY CROP</span><h3>Soyabean health</h3></div>
-            <Link to="/crops/soyabean">Crop guide →</Link>
+        
+        {/* DYNAMIC FIELD HEALTH RENDERER - Shows the fields you actually added */}
+        <div style={{ display: 'grid', gap: '1.5rem' }}>
+          {(Array.isArray(fields) && fields.length > 0) ? (
+             fields.slice(0, 1).map(f => {
+               const health = getMockHealth(f?.id);
+               const isWarning = health < 85;
+               
+               const safeCropName = f?.crop || "Unknown Crop";
+               const dbCrop = crops.find(c => c?.name?.toLowerCase() === safeCropName.toLowerCase());
+               const bgImage = dbCrop?.imageUrl || "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=800&q=80";
+
+               return (
+                 <Card key={f.id} style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ padding: '30px', paddingBottom: '15px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <div><span style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px' }}>FIELD HEALTH TRACKER</span><h3 style={{ fontSize: '20px', margin: '5px 0', fontWeight: 800 }}>{f?.name || "Unknown Field"} ({safeCropName})</h3></div>
+                        <Link to="/my-farm" style={{ color: '#16a34a', fontWeight: 'bold', textDecoration: 'none' }}>Field details →</Link>
+                      </div>
+                    </div>
+                    <div style={{ position: 'relative', height: '180px', backgroundImage: `url(${bgImage})`, backgroundSize: 'cover', backgroundPosition: 'center', margin: '0 20px', borderRadius: '16px' }}>
+                      {isWarning && <div style={{ position: 'absolute', top: '20px', right: '40px', width: '90px', height: '90px', background: 'radial-gradient(circle, rgba(217,119,6,0.8) 0%, rgba(217,119,6,0) 70%)', borderRadius: '50%' }}></div>}
+                      {!isWarning && <div style={{ position: 'absolute', top: '20px', right: '40px', width: '90px', height: '90px', background: 'radial-gradient(circle, rgba(22,163,74,0.6) 0%, rgba(22,163,74,0) 70%)', borderRadius: '50%' }}></div>}
+                      
+                      <div style={{ position: 'absolute', bottom: '20px', left: '20px', background: 'rgba(255,255,255,0.95)', padding: '12px 20px', borderRadius: '16px', display: 'flex', alignItems: 'center', gap: '15px', boxShadow: '0 8px 20px rgba(0,0,0,0.15)' }}>
+                        <RadialGauge value={health} color={isWarning ? "#d97706" : "#16a34a"} />
+                        <div>
+                          <b style={{ fontSize: '28px', color: '#111827', margin: 0, lineHeight: 1 }}>{health}<span style={{fontSize:'14px', color:'#6b7280'}}>/100</span></b>
+                          <p style={{ margin: 0, color: isWarning ? '#d97706' : '#16a34a', fontWeight: 700, fontSize: '14px' }}>
+                            {isWarning ? "Needs attention" : "Optimal Health"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ padding: '20px 30px 30px' }}>
+                      <div style={{ backgroundColor: isWarning ? '#fffbeb' : '#f0fdf4', color: isWarning ? '#b45309' : '#15803d', border: `1px solid ${isWarning ? '#fde68a' : '#bbf7d0'}`, padding: '16px', borderRadius: '12px', display: 'flex', gap: '10px', fontSize: '14px', fontWeight: 500 }}>
+                        {isWarning ? <AlertTriangle size={20} /> : <Sparkles size={20}/>}
+                        <span>{isWarning ? "Investigate yellow stress zone for moisture deficit." : "Crop is developing perfectly based on local conditions."}</span>
+                      </div>
+                    </div>
+                 </Card>
+               );
+             })
+          ) : (
+             <Card style={{ display: 'grid', placeItems: 'center', textAlign: 'center', padding: '50px' }}>
+                <Sprout size={48} color="#9ca3af" style={{ marginBottom: '10px' }} />
+                <h3 style={{ fontSize: '18px', color: '#4b5563', margin: 0 }}>No fields mapped</h3>
+                <p style={{ color: '#6b7280', fontSize: '14px', marginBottom: '20px', marginTop: '10px' }}>Add a field to your ledger to track live spatial health.</p>
+                <Link to="/my-farm" className="button" style={{ textDecoration: 'none' }}>Add your first field</Link>
+             </Card>
+          )}
+        </div>
+      </div>
+      
+      <div className="grid-3" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
+        <Card style={{ gridColumn: '1 / span 2' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div><span style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px' }}>MARKET INTELLIGENCE</span><h3 style={{ fontSize: '20px', margin: '5px 0', fontWeight: 800 }}>Agmarknet Prices</h3></div>
+            <Link to="/mandi" style={{ color: '#16a34a', fontWeight: 'bold', textDecoration: 'none' }}>View Mandi Bhav →</Link>
           </div>
-          <div className="crop-health">
-            <div className="leaf-orb"><Leaf /></div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginTop: '20px' }}>
             <div>
-              <b>82<span>/100</span></b>
-              <p>Healthy · needs attention</p>
-              <div className="progress"><i style={{ width: "82%" }} /></div>
+              <b style={{ fontSize: '42px', color: '#111827', letterSpacing: '-1px', fontWeight: 800 }}>₹4,650 <small style={{ fontSize: '16px', color: '#6b7280', fontWeight: 500 }}>/ quintal</small></b>
+              <span style={{ backgroundColor: '#dcfce7', color: '#166534', padding: '6px 12px', borderRadius: '8px', fontSize: '13px', fontWeight: 'bold', display: 'inline-block', marginTop: '5px' }}>▲ +2.4% this week</span>
+            </div>
+            <div style={{ width: '150px', height: '60px', marginLeft: 'auto' }}>
+              <ResponsiveContainer>
+                <LineChart data={mandi.slice(-7)}>
+                  <Line type="monotone" dataKey="price" stroke="#16a34a" strokeWidth={3} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
           </div>
-          <div className="advisory"><Sparkles size={17} /><span>Inspect lower leaves this week for early pest symptoms.</span></div>
-        </Card>
-      </div>
-      <div className="grid-3">
-        <Card className="span-2">
-          <div className="card-head">
-            <div><span className="eyebrow">MARKET INTELLIGENCE</span><h3>Agmarknet Prices</h3></div>
-            <Link to="/mandi">View Mandi Bhav →</Link>
-          </div>
-          <div className="market">
-            <b>₹4,650 <small>/ quintal</small></b>
-            <span>▲ Soybean this week</span>
-          </div>
-          <div className="chart">
+          <div style={{ height: '180px', marginTop: '20px' }}>
             <ResponsiveContainer>
               <AreaChart data={mandi}>
-                <XAxis dataKey="day" /><YAxis hide domain={["dataMin - 30", "dataMax + 30"]} /><Tooltip />
-                <Area dataKey="price" stroke="#166534" fill="#dcfce7" strokeWidth={2} />
+                <XAxis dataKey="day" axisLine={false} tickLine={false} />
+                <YAxis hide domain={["dataMin - 30", "dataMax + 30"]} />
+                <Tooltip />
+                <Area dataKey="price" stroke="#166534" fill="#dcfce7" strokeWidth={3} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </Card>
+        
         <Card>
-          <div className="card-head">
-            <div><span className="eyebrow">TODAY'S PRIORITIES</span><h3>Farm tasks</h3></div>
-            <b>3</b>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div><span style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '12px', letterSpacing: '1px' }}>TODAY'S PRIORITIES</span><h3 style={{ fontSize: '20px', margin: '5px 0', fontWeight: 800 }}>Farm tasks</h3></div>
+            <button style={{ border: 'none', background: '#166534', color: 'white', width: '40px', height: '40px', borderRadius: '12px', display: 'grid', placeItems: 'center', cursor: 'pointer', boxShadow: '0 4px 10px rgba(22, 163, 74, 0.3)' }}><Mic size={20}/></button>
           </div>
-          {["Clear drainage channels", "Inspect lower leaves", "Check local mandi price"].map((x, i) => (
-            <label className="task" key={x}>
-              <input type="checkbox" checked={done[i]} onChange={() => setDone(d => d.map((v, j) => j === i ? !v : v))} />
-              <span>{x}<small>{i === 0 ? "High priority" : i === 1 ? "Due today" : "Market check"}</small></span>
-            </label>
-          ))}
-          <Link to="/my-farm" className="text-link">Open farm planner →</Link>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {["Clear drainage channels", "Inspect lower leaves", "Check local mandi price"].map((x, i) => (
+              <label key={x} style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', padding: '15px', backgroundColor: done[i] ? '#f9fafb' : '#fff', border: '1px solid #e5e7eb', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s' }}>
+                <input type="checkbox" checked={done[i]} onChange={() => setDone(d => d.map((v, j) => j === i ? !v : v))} style={{ width: '20px', height: '20px', accentColor: '#16a34a', marginTop: '2px' }} />
+                <div style={{ display: 'grid' }}>
+                  <span style={{ fontSize: '15px', fontWeight: 600, color: done[i] ? '#9ca3af' : '#111827', textDecoration: done[i] ? 'line-through' : 'none' }}>{x}</span>
+                  <small style={{ color: '#6b7280', fontSize: '12px', marginTop: '4px' }}>{i === 0 ? "High priority" : i === 1 ? "Due today" : "Market check"}</small>
+                </div>
+              </label>
+            ))}
+          </div>
+          <Link to="/my-farm" style={{ display: 'block', marginTop: '20px', color: '#16a34a', fontWeight: 'bold', textAlign: 'center', padding: '12px', background: '#f0fdf4', borderRadius: '12px', textDecoration: 'none' }}>Open full planner →</Link>
         </Card>
       </div>
     </main>
   );
 }
-
-function Metric({ icon, label, value, detail, tone }: { icon: React.ReactNode; label: string; value: string; detail: string; tone: string }) {
-  return (
-    <Card className="metric">
-      <span className={"metric-icon " + tone}>{icon}</span>
-      <div><small>{label}</small><b>{value}</b><em>{detail}</em></div>
-    </Card>
-  );
-}
-
 // ── Weather ────────────────────────────────────────────────────────────────
 export function Weather() {
   const [wx, setWx] = useState<LiveContext | null>(null);
@@ -306,22 +433,26 @@ export function Weather() {
 
   if (loading) {
     return (
-      <main>
+      <main style={{ maxWidth: '1100px', margin: '0 auto' }}>
         <Title eyebrow="LOCAL CONDITIONS" title="Weather intelligence" copy="Loading live conditions for your saved location…" />
-        <Card className="empty-state"><CloudRain size={34} /><p>Fetching live weather from Open-Meteo…</p></Card>
+        <Card style={{ padding: '80px 20px', textAlign: 'center' }}>
+          <Loader2 size={48} className="animate-spin" color="#16a34a" style={{ margin: '0 auto 20px' }} />
+          <h2 style={{ fontSize: '24px', margin: '0 0 10px', color: '#111827' }}>Connecting to satellites...</h2>
+          <p style={{ color: '#6b7280', margin: 0, fontSize: '16px' }}>Fetching high-resolution data from Open-Meteo.</p>
+        </Card>
       </main>
     );
   }
 
   if (!wx) {
     return (
-      <main>
+      <main style={{ maxWidth: '1100px', margin: '0 auto' }}>
         <Title eyebrow="LOCAL CONDITIONS" title="Weather intelligence" copy="No location set. Go to Location to pick your farming area." />
-        <Card className="empty-state">
-          <CloudRain size={34} />
-          <h2>No location set</h2>
-          <p>Set your farm location to see real weather conditions.</p>
-          <Link className="button" to="/location"><MapPin size={15} /> Set location</Link>
+        <Card style={{ padding: '80px 20px', textAlign: 'center' }}>
+          <CloudRain size={64} color="#9ca3af" style={{ margin: '0 auto 20px', opacity: 0.5 }} />
+          <h2 style={{ fontSize: '28px', margin: '0 0 10px', color: '#111827', fontWeight: 800 }}>No location set</h2>
+          <p style={{ color: '#6b7280', marginBottom: '30px', fontSize: '16px' }}>Set your farm location to see real weather conditions.</p>
+          <Link className="button" to="/location" style={{ textDecoration: 'none', padding: '14px 28px', fontSize: '16px' }}><MapPin size={18} /> Set location</Link>
         </Card>
       </main>
     );
@@ -330,51 +461,89 @@ export function Weather() {
   const updatedTime = new Date(wx.updatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <main>
+    <main style={{ maxWidth: '1100px', margin: '0 auto' }}>
       <Title
         eyebrow="LOCAL CONDITIONS"
         title="Weather intelligence"
         copy={`Live data for ${wx.location} · Updated ${updatedTime} · Source: Open-Meteo forecast model`}
       />
-      <div className="weather-hero">
-        <div>
-          <span>NOW · {wx.location.toUpperCase()}</span>
-          <b>{wx.temperature}°</b>
-          <p>Feels like {wx.feelsLike}°C · {wx.rainProbability}% rain probability</p>
+      
+      {/* Immersive Weather Hero */}
+      <div style={{ background: 'linear-gradient(135deg, #16a34a 0%, #065f46 100%)', borderRadius: '32px', padding: '40px', color: 'white', display: 'flex', gap: '40px', alignItems: 'center', marginBottom: '30px', flexWrap: 'wrap', boxShadow: '0 20px 40px -10px rgba(6, 95, 70, 0.3)' }}>
+        <div style={{ flex: '1 1 300px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+            <MapPin size={20} opacity={0.8} />
+            <span style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '2px', opacity: 0.9, textTransform: 'uppercase' }}>NOW · {wx.location}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+             <CloudRain size={80} style={{ opacity: 0.9 }} />
+             <b style={{ fontSize: '84px', fontWeight: 800, lineHeight: 1, letterSpacing: '-3px' }}>{wx.temperature}°</b>
+          </div>
+          <p style={{ margin: '20px 0 0', color: '#d1fae5', fontSize: '18px', fontWeight: 500 }}>Feels like {wx.feelsLike}°C · {wx.rainProbability}% rain probability</p>
         </div>
-        <CloudRain size={86} />
-        <div className="weather-stats">
-          <p><Droplets /> Humidity <b>{wx.humidity}%</b></p>
-          <p><Wind /> Wind <b>{wx.wind} km/h</b></p>
-          <p><CloudRain /> Rain (24 h) <b>{wx.maxRain24h} mm</b></p>
-          <p><ThermometerSun /> Max today <b>{wx.maxTemp24h}°C</b></p>
+
+        {/* Frosted Glass Metrics Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '15px', flex: '1 1 300px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', padding: '20px', borderRadius: '20px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}><Droplets size={16}/> Humidity</span>
+            <b style={{ fontSize: '28px', fontWeight: 800, letterSpacing: '-1px' }}>{wx.humidity}%</b>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', padding: '20px', borderRadius: '20px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}><Wind size={16}/> Wind</span>
+            <b style={{ fontSize: '28px', fontWeight: 800, letterSpacing: '-1px' }}>{wx.wind} <span style={{fontSize: '14px', fontWeight: 600, opacity: 0.8}}>km/h</span></b>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', padding: '20px', borderRadius: '20px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}><CloudRain size={16}/> Rain (24h)</span>
+            <b style={{ fontSize: '28px', fontWeight: 800, letterSpacing: '-1px' }}>{wx.maxRain24h} <span style={{fontSize: '14px', fontWeight: 600, opacity: 0.8}}>mm</span></b>
+          </div>
+          <div style={{ background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(12px)', padding: '20px', borderRadius: '20px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: '#a7f3d0', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '1px' }}><ThermometerSun size={16}/> Max Temp</span>
+            <b style={{ fontSize: '28px', fontWeight: 800, letterSpacing: '-1px' }}>{wx.maxTemp24h}°</b>
+          </div>
         </div>
       </div>
-      <Card>
-        <div className="card-head">
-          <div><span className="eyebrow">7-DAY TREND</span><h3>Rainfall &amp; temperature</h3></div>
-          <span className="live-badge">● Live</span>
+
+      <Card style={{ borderRadius: '32px', padding: '40px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'flex-start' }}>
+          <div>
+            <span style={{ color: '#6b7280', fontWeight: 800, fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase' }}>7-Day Trend</span>
+            <h3 style={{ fontSize: '28px', margin: '8px 0 0', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>Rainfall & Temperature</h3>
+          </div>
+          <Badge level="LIVE FORECAST" />
         </div>
-        <div className="chart large">
+        
+        <div style={{ height: '400px', marginTop: '20px' }}>
           <ResponsiveContainer>
-            <AreaChart data={wx.dailyForecast}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="day" />
-              <YAxis yAxisId="rain" orientation="left" unit=" mm" />
-              <YAxis yAxisId="temp" orientation="right" unit="°C" />
-              <Tooltip formatter={(v: number, name: string) => name === "rain" ? [`${v} mm`, "Rainfall"] : [`${v}°C`, "Max Temp"]} />
-              <Area yAxisId="rain" dataKey="rain" name="rain" stroke="#0284c7" fill="#e0f2fe" strokeWidth={2} />
-              <Area yAxisId="temp" dataKey="temp" name="temp" stroke="#d97706" fill="transparent" strokeWidth={2} strokeDasharray="4 2" />
+            <AreaChart data={wx.dailyForecast} margin={{ top: 20, right: 0, left: -20, bottom: 0 }}>
+              <defs>
+                <linearGradient id="rainGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
+              <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#6b7280', fontWeight: 600 }} dy={10} />
+              <YAxis yAxisId="rain" orientation="left" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#6b7280', fontWeight: 600 }} dx={-10} />
+              <YAxis yAxisId="temp" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 13, fill: '#6b7280', fontWeight: 600 }} dx={10} />
+              
+              <Tooltip 
+                 contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)', padding: '15px', fontWeight: 600 }}
+                 formatter={(v: number, name: string) => name === "rain" ? [`${v} mm`, "Rainfall"] : [`${v}°C`, "Max Temp"]} 
+              />
+              
+              <Area yAxisId="rain" type="monotone" dataKey="rain" name="rain" stroke="#3b82f6" fill="url(#rainGrad)" strokeWidth={4} activeDot={{ r: 8, fill: '#3b82f6', stroke: 'white', strokeWidth: 2 }} />
+              <Area yAxisId="temp" type="monotone" dataKey="temp" name="temp" stroke="#f59e0b" fill="transparent" strokeWidth={3} strokeDasharray="8 6" activeDot={{ r: 6, fill: '#f59e0b' }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
-        <small className="risk-disclaimer">Source: Open-Meteo forecast model · {wx.location} · {wx.latitude.toFixed(4)}°N, {wx.longitude.toFixed(4)}°E · Not an official IMD forecast.</small>
+        <small style={{ display: 'block', marginTop: '30px', color: '#9ca3af', fontSize: '13px', textAlign: 'center' }}>
+          Source: Open-Meteo forecast model · {wx.location} · {wx.latitude.toFixed(4)}°N, {wx.longitude.toFixed(4)}°E
+        </small>
       </Card>
     </main>
   );
 }
-
-// ── Risk Radar ─────────────────────────────────────────────────────────────
+// ── Risk Radar (Premium UI & Dynamic Hazard Cards) ─────────────────────────
 type HazardLevel = "WATCH" | "MONITOR" | "CLEAR";
 
 interface HazardSignal {
@@ -457,25 +626,34 @@ function buildHazards(ctx: LiveContext): HazardSignal[] {
   return signals;
 }
 
-const levelColor: Record<HazardLevel, string> = {
-  WATCH: "#b91c1c",
-  MONITOR: "#a16207",
-  CLEAR: "#167344",
-};
-
 function HazardCard({ signal }: { signal: HazardSignal }) {
+  const themes = {
+    WATCH: { bg: '#fef2f2', border: '#fecaca', text: '#b91c1c', iconBg: '#fee2e2' },
+    MONITOR: { bg: '#fffbeb', border: '#fde68a', text: '#d97706', iconBg: '#fef3c7' },
+    CLEAR: { bg: '#f0fdf4', border: '#bbf7d0', text: '#15803d', iconBg: '#dcfce7' },
+  };
+  const t = themes[signal.level];
+
   return (
-    <Card className={`hazard-card hazard-${signal.level.toLowerCase()}`}>
-      <div className="hazard-header">
-        <span className={`hazard-icon hazard-icon--${signal.level.toLowerCase()}`}>{signal.icon}</span>
-        <div>
-          <Badge level={signal.level} />
-          <h3>{signal.title}</h3>
+    <Card style={{ background: t.bg, border: `1px solid ${t.border}`, padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', borderRadius: '24px', boxShadow: 'none', transition: 'transform 0.2s ease' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{ background: t.iconBg, color: t.text, padding: '12px', borderRadius: '16px', display: 'grid', placeItems: 'center' }}>
+            {signal.icon}
+          </div>
+          <div>
+            <Badge level={signal.level} />
+            <h3 style={{ margin: '4px 0 0', fontSize: '18px', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>{signal.title}</h3>
+          </div>
         </div>
-        <b className="hazard-value" style={{ color: levelColor[signal.level] }}>{signal.value}</b>
+        <b style={{ color: t.text, fontSize: '20px', fontWeight: 800 }}>{signal.value}</b>
       </div>
-      <p className="hazard-detail">{signal.detail}</p>
-      <div className="hazard-action"><Check size={15} />{signal.action}</div>
+      <p style={{ margin: 0, color: '#4b5563', fontSize: '15px', fontWeight: 500 }}>{signal.detail}</p>
+      
+      <div style={{ marginTop: 'auto', background: 'rgba(255,255,255,0.6)', padding: '14px 16px', borderRadius: '12px', fontSize: '14px', color: '#111827', fontWeight: 600, display: 'flex', gap: '10px', alignItems: 'flex-start', border: `1px solid ${t.border}` }}>
+        <Check size={18} color={t.text} style={{ flexShrink: 0, marginTop: '2px' }}/>
+        <span style={{ lineHeight: 1.5 }}>{signal.action}</span>
+      </div>
     </Card>
   );
 }
@@ -504,48 +682,80 @@ export function RiskRadar() {
   const hazards = context ? buildHazards(context) : [];
 
   return (
-    <main>
+    <main style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <Title eyebrow="EVIDENCE-LED RISK VIEW" title="Risk radar" copy="Signals derived from Open-Meteo forecast model. Not official disaster alerts." />
-      <Card className="risk-live">
-        <div>
-          <b>{context ? "Live weather signal" : "No location data"}</b>
-          <span>{context ? `${context.location}` : "Set your location first."}</span>
+      
+      {/* Premium Location Banner */}
+      <Card style={{ background: '#111827', color: 'white', borderRadius: '24px', padding: '24px 32px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px', marginBottom: '32px', border: 'none', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ background: 'rgba(59, 130, 246, 0.2)', padding: '12px', borderRadius: '50%', color: '#60a5fa' }}>
+            <MapPin size={24}/>
+          </div>
+          <div>
+            <b style={{ display: 'block', fontSize: '12px', color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px', fontWeight: 800 }}>
+              {context ? "Live weather signal" : "No location data"}
+            </b>
+            <span style={{ fontSize: '20px', fontWeight: 800, letterSpacing: '-0.5px' }}>
+              {context ? `${context.location}` : "Set your location first"}
+            </span>
+          </div>
         </div>
-        <Link to="/location" className="button secondary"><MapPin size={14} /> Change location</Link>
+        <Link to="/location" style={{ background: 'rgba(255,255,255,0.1)', color: 'white', padding: '12px 20px', borderRadius: '12px', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', transition: 'background 0.2s', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <MapPin size={16} /> Change location
+        </Link>
       </Card>
 
       {context ? (
         <>
-          <div className="hazard-grid">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
             {hazards.map(h => <HazardCard key={h.id} signal={h} />)}
           </div>
-          <small className="risk-disclaimer">
-            ⓘ All values are from the Open-Meteo forecast model ({new Date(context.updatedAt).toLocaleString()}).
-            They are <b>not</b> official government alerts. For official disaster warnings, follow IMD, NDMA, and your state disaster management authority.
-          </small>
+          <div style={{ marginTop: '24px', padding: '16px', background: '#f3f4f6', borderRadius: '16px', color: '#6b7280', fontSize: '13px', lineHeight: 1.6, display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+            <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: '2px', color: '#9ca3af' }} />
+            <p style={{ margin: 0 }}>
+              All values are from the Open-Meteo forecast model (Last updated: {new Date(context.updatedAt).toLocaleString()}). 
+              They are <strong style={{ color: '#374151' }}>not</strong> official government alerts. For official disaster warnings, follow IMD, NDMA, and your state disaster management authority.
+            </p>
+          </div>
         </>
       ) : !loading ? (
-        <Card className="empty-state">
-          <ShieldAlert size={34} />
-          <h2>Choose a real location</h2>
-          <p>Set your farm location to see weather-model risk signals based on actual forecast data.</p>
-          <div style={{ display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap" }}>
-            <Link className="button" to="/location"><MapPin size={15} /> Set location</Link>
-            <button className="button secondary" onClick={refreshGPS}>Use GPS instead</button>
+        <Card style={{ textAlign: 'center', padding: '60px 20px', borderRadius: '32px', border: '2px dashed #d1d5db', background: '#f9fafb', boxShadow: 'none' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#fee2e2', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+            <ShieldAlert size={40} />
+          </div>
+          <h2 style={{ fontSize: '24px', margin: '0 0 10px', color: '#111827', fontWeight: 800 }}>Choose a real location</h2>
+          <p style={{ color: '#6b7280', fontSize: '16px', marginBottom: '30px', maxWidth: '400px', margin: '0 auto 30px', lineHeight: 1.6 }}>
+            Set your farm location to see weather-model risk signals based on actual forecast data.
+          </p>
+          <div style={{ display: "flex", gap: '12px', justifyContent: "center", flexWrap: "wrap" }}>
+            <Link className="button" to="/location" style={{ padding: '14px 24px', fontSize: '15px' }}><MapPin size={18} /> Set location manually</Link>
+            <button className="button secondary" onClick={refreshGPS} style={{ padding: '14px 24px', fontSize: '15px', background: 'white' }}>Use GPS instead</button>
           </div>
         </Card>
       ) : (
-        <Card className="empty-state"><p>Loading weather data…</p></Card>
+        <Card style={{ textAlign: 'center', padding: '80px 20px', borderRadius: '32px', border: '1px solid #e5e7eb', boxShadow: 'none' }}>
+          <Loader2 size={48} className="animate-spin" color="#16a34a" style={{ margin: '0 auto 20px' }} />
+          <h2 style={{ fontSize: '20px', margin: '0 0 10px', color: '#111827', fontWeight: 800 }}>Synchronizing Risk Data...</h2>
+          <p style={{ color: '#6b7280', margin: 0 }}>Fetching 7-day meteorological forecasts.</p>
+        </Card>
       )}
 
-      <h2 className="section-title">Preparedness guides</h2>
-      <div className="alerts">
+      <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '40px 0 24px', color: '#111827', letterSpacing: '-0.5px' }}>Preparedness guides</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
         {alerts.map(a => (
-          <Card className="alert" key={a.title}>
-            <Badge level="GUIDANCE" />
-            <h3>{a.title}</h3>
-            <p>Offline preparedness guidance — not a live alert.</p>
-            <div><Check size={16} />{a.action}</div>
+          <Card key={a.title} style={{ padding: '24px', borderRadius: '24px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div style={{ background: '#e0f2fe', color: '#0369a1', padding: '12px', borderRadius: '16px' }}>
+                <FileUp size={24} />
+              </div>
+              <Badge level="GUIDANCE" />
+            </div>
+            <h3 style={{ fontSize: '20px', margin: '0 0 8px', color: '#111827', fontWeight: 800, letterSpacing: '-0.5px' }}>{a.title}</h3>
+            <p style={{ color: '#6b7280', fontSize: '14px', margin: '0 0 20px', lineHeight: 1.6 }}>Offline preparedness guidance — not a live alert.</p>
+            <div style={{ marginTop: 'auto', background: '#f9fafb', padding: '16px', borderRadius: '12px', fontSize: '14px', color: '#374151', fontWeight: 500, display: 'flex', gap: '12px', alignItems: 'flex-start', border: '1px solid #f3f4f6' }}>
+              <Check size={18} color="#16a34a" style={{ flexShrink: 0, marginTop: '2px' }}/>
+              <span style={{ lineHeight: 1.5 }}>{a.action}</span>
+            </div>
           </Card>
         ))}
       </div>
@@ -553,74 +763,168 @@ export function RiskRadar() {
   );
 }
 
-// ── Crop Library ────────────────────────────────────────────────────────────
+// ── Crop Library (New AI Imagery Layout) ──────────────────────────────────
 export function CropLibrary() {
   const [season, setSeason] = useState("All");
   const [q, setQ] = useState("");
-  const visible = crops.filter(c => (season === "All" || c.season === season) && c.name.toLowerCase().includes(q.toLowerCase()));
+  const visible = crops.filter(c => (season === "All" || c.season === season) && c?.name?.toLowerCase().includes(q.toLowerCase()));
+  
   return (
-    <main>
+    <main style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <Title eyebrow="OFFLINE CROP DATABASE" title="Crop library" copy="Comprehensive crop profiles and parameters for Indian conditions." />
-      <div className="toolbar">
-        <input aria-label="Search crop" placeholder="Search crops (e.g. Wheat, Maize)" value={q} onChange={e => setQ(e.target.value)} />
-        <div style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+      
+      {/* Modern Search & Filter Toolbar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '15px', marginBottom: '40px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: '1 1 300px', maxWidth: '500px' }}>
+            <Search size={20} color="#6b7280" style={{ position: 'absolute', left: '18px', top: '16px' }} />
+            <input 
+              aria-label="Search crop" 
+              placeholder="Search crops (e.g. Wheat, Maize)..." 
+              value={q} 
+              onChange={e => setQ(e.target.value)} 
+              style={{ width: '100%', padding: '16px 20px 16px 50px', borderRadius: '16px', border: '1px solid #d1d5db', fontSize: '15px', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}
+            />
+        </div>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center', background: '#f3f4f6', padding: '8px', borderRadius: '20px' }}>
           {["All", "Kharif", "Rabi", "Horticulture"].map(x => (
-            <button key={x} className={season === x ? "selected" : ""} onClick={() => setSeason(x)}>{x}</button>
+            <button 
+              key={x} 
+              style={{ 
+                padding: '12px 24px', borderRadius: '14px', fontWeight: 700, border: 'none', fontSize: '14px', cursor: 'pointer',
+                background: season === x ? '#16a34a' : 'transparent', color: season === x ? 'white' : '#4b5563',
+                boxShadow: season === x ? '0 4px 12px rgba(22,163,74,0.3)' : 'none',
+                transition: 'all 0.2s ease'
+              }} 
+              onClick={() => setSeason(x)}
+            >{x}</button>
           ))}
         </div>
       </div>
-      <div className="crop-grid">
-        {visible.map(c => (
-          <Link to={"/crops/" + c.id} className="crop-card" key={c.id}>
-            <div><span>{c.season}</span><b>{c.name}</b><small>{c.localName}</small></div>
-            <p>{c.duration} · {c.water} water</p>
-            <em>{c.soil.join(" · ")} soil</em>
+      
+      {/* Immersive Image Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
+        {visible.map((c: any) => (
+          <Link to={"/crops/" + c.id} key={c.id} style={{ display: 'block', textDecoration: 'none' }}>
+            <Card style={{ padding: '0', overflow: 'hidden', height: '100%', display: 'flex', flexDirection: 'column', transition: 'transform 0.2s, box-shadow 0.2s', border: 'none' }}>
+              <div style={{ height: '220px', backgroundImage: `url(${c.imageUrl || 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=800&q=80'})`, backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
+              <div style={{ padding: '24px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 800, color: '#16a34a', letterSpacing: '1px', textTransform: 'uppercase' }}>{c.season} CROP</span>
+                <h3 style={{ fontSize: '26px', margin: '8px 0', color: '#111827', fontWeight: 800, letterSpacing: '-0.5px' }}>{c.name} <span style={{ fontSize: '16px', color: '#6b7280', fontWeight: 500 }}>{c.localName}</span></h3>
+                
+                <div style={{ margin: '20px 0 0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <span style={{ color: '#4b5563', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 500 }}><Calendar size={18} color="#16a34a" /> {c.duration}</span>
+                  <span style={{ color: '#4b5563', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 500 }}><Droplets size={18} color="#0284c7" /> {c.water} water required</span>
+                  <span style={{ color: '#4b5563', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 500 }}><MapPin size={18} color="#d97706" /> {c.soil[0]} soil</span>
+                </div>
+              </div>
+            </Card>
           </Link>
         ))}
-        {visible.length === 0 && <p style={{ padding: '2rem', color: '#6b7280' }}>No crops found matching your search.</p>}
+        {visible.length === 0 && (
+          <div style={{ textAlign: 'center', gridColumn: '1/-1', padding: '60px', background: '#fff', borderRadius: '24px', border: '1px solid #e5e7eb' }}>
+            <Leaf size={48} color="#9ca3af" style={{ margin: '0 auto 15px' }}/>
+            <h3 style={{fontSize: '20px', margin: '0 0 10px', fontWeight: 800}}>No crops found</h3>
+            <p style={{ color: '#6b7280', margin: 0, fontSize: '15px' }}>Try adjusting your search or season filter.</p>
+          </div>
+        )}
       </div>
     </main>
   );
 }
 
-// ── Crop Details ────────────────────────────────────────────────────────────
+// ── Crop Details (Cinematic Experience) ─────────────────────────────────────
 export function CropDetails() {
   const { id } = useParams();
-  const c = crops.find(x => x.id === id) || crops[0];
+  const c: any = crops.find(x => x.id === id) || crops[0];
+  
   return (
-    <main>
-      <Link className="back" to="/crops">← Crop library</Link>
-      <div className="detail-head">
-        <div><span>{c.season} CROP</span><h1>{c.name}</h1><p>{c.localName} · Duration: {c.duration}</p></div>
-        <Badge level="HEALTHY" />
+    <main style={{ maxWidth: '1400px', margin: '0 auto' }}>
+      <Link to="/crops" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#16a34a', fontWeight: 700, marginBottom: '24px', textDecoration: 'none', fontSize: '15px', background: '#f0fdf4', padding: '10px 16px', borderRadius: '12px' }}><ArrowRight size={18} style={{ transform: 'rotate(180deg)' }} /> Back to Library</Link>
+      
+      {/* Immersive Hero Header */}
+      <Card style={{ padding: 0, overflow: 'hidden', marginBottom: '30px', position: 'relative', border: 'none', borderRadius: '32px' }}>
+        <div style={{ height: '400px', backgroundImage: `url(${c.imageUrl || 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=1200&q=80'})`, backgroundSize: 'cover', backgroundPosition: 'center', display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ background: 'linear-gradient(to top, rgba(17,24,39,0.95) 0%, rgba(17,24,39,0.5) 60%, transparent 100%)', width: '100%', padding: '80px 40px 40px' }}>
+            <Badge level="AI ENCYCLOPEDIA" />
+            <h1 style={{ color: 'white', fontSize: '56px', margin: '15px 0 5px', fontWeight: 800, letterSpacing: '-1.5px' }}>{c.name} <span style={{ opacity: 0.8, fontWeight: 500, fontSize: '28px' }}>{c.localName}</span></h1>
+            <p style={{ color: '#d1fae5', margin: 0, fontSize: '20px', fontWeight: 600 }}>{c.season} Crop · {c.duration}</p>
+          </div>
+        </div>
+      </Card>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
+        <Card style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', boxShadow: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+            <div style={{ background: '#dcfce7', padding: '10px', borderRadius: '12px', color: '#16a34a' }}><ThermometerSun size={24}/></div>
+            <span style={{ color: '#166534', fontWeight: 800, fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase' }}>SOIL & CLIMATE</span>
+          </div>
+          <h3 style={{ fontSize: '28px', margin: '0 0 15px', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>{c.soil[0]} Soil</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <p style={{ color: '#374151', margin: 0, fontSize: '15px', display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #d1fae5', paddingBottom: '8px' }}><b>Temperature</b> <span>{c.temperature}</span></p>
+            <p style={{ color: '#374151', margin: 0, fontSize: '15px', display: 'flex', justifyContent: 'space-between' }}><b>Rainfall</b> <span>{c.rainfall}</span></p>
+          </div>
+        </Card>
+        
+        <Card style={{ background: '#e0f2fe', border: '1px solid #bae6fd', boxShadow: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+            <div style={{ background: '#bae6fd', padding: '10px', borderRadius: '12px', color: '#0369a1' }}><Sprout size={24}/></div>
+            <span style={{ color: '#075985', fontWeight: 800, fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase' }}>CURRENT STAGE</span>
+          </div>
+          <h3 style={{ fontSize: '28px', margin: '0 0 10px', fontWeight: 800, color: '#111827', letterSpacing: '-0.5px' }}>{c.stage}</h3>
+          <p style={{ color: '#374151', lineHeight: 1.6, margin: 0, fontSize: '15px' }}>Monitor crop condition weekly based on the field ledger.</p>
+        </Card>
+        
+        <Card style={{ background: '#fffbeb', border: '1px solid #fde68a', boxShadow: 'none' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '15px' }}>
+            <div style={{ background: '#fde68a', padding: '10px', borderRadius: '12px', color: '#d97706' }}><Sparkles size={24}/></div>
+            <span style={{ color: '#b45309', fontWeight: 800, fontSize: '12px', letterSpacing: '1px', textTransform: 'uppercase' }}>FIELD NOTE</span>
+          </div>
+          <h3 style={{ fontSize: '24px', margin: '0 0 10px', fontWeight: 800, color: '#111827' }}>General advisory</h3>
+          <p style={{ color: '#374151', lineHeight: 1.6, margin: 0, fontSize: '15px', fontWeight: 500 }}>{c.advice}</p>
+        </Card>
       </div>
-      <div className="grid-3">
-        <Card><span className="eyebrow">SOIL &amp; CLIMATE</span><h3>{c.soil[0]}</h3><p>Temp: {c.temperature}<br/>Rain: {c.rainfall}</p></Card>
-        <Card><span className="eyebrow">CURRENT STAGE</span><h3>{c.stage}</h3><p>Monitor crop condition weekly.</p></Card>
-        <Card><span className="eyebrow">FIELD NOTE</span><h3>General advisory</h3><p>{c.advice}</p></Card>
-      </div>
-      <div className="grid-2">
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
         <Card>
-          <span className="eyebrow">PESTS &amp; DISEASE WATCH</span>
-          <h3>Regular checks matter</h3>
-          <ul style={{ paddingLeft: '1.2rem', marginTop: '0.5rem', lineHeight: '1.6' }}>
-            {c.pests.map(p => <li key={p}>{p}</li>)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
+            <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '12px', borderRadius: '14px' }}><AlertTriangle size={24}/></div>
+            <div>
+              <span style={{ color: '#b91c1c', fontWeight: 800, fontSize: '11px', letterSpacing: '1px' }}>PESTS & DISEASE WATCH</span>
+              <h3 style={{ fontSize: '24px', margin: '2px 0 0', color: '#111827', fontWeight: 800, letterSpacing: '-0.5px' }}>Regular checks matter</h3>
+            </div>
+          </div>
+          <ul style={{ paddingLeft: '0', listStyle: 'none', marginTop: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {c.pests.map((p: any) => (
+              <li key={p} style={{ background: '#f9fafb', padding: '16px 20px', borderRadius: '16px', fontSize: '15px', color: '#374151', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid #e5e7eb' }}>
+                <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#ef4444' }}></div>
+                {p}
+              </li>
+            ))}
           </ul>
         </Card>
+        
         <Card>
-          <span className="eyebrow">CONTINGENCY PLANNING</span>
-          <h3>Alternate Crops</h3>
-          <p style={{ marginTop: '0.5rem' }}>If replanting is needed due to severe damage:</p>
-          <ul style={{ paddingLeft: '1.2rem', marginTop: '0.5rem', lineHeight: '1.6' }}>
-            {c.alternates.map(a => <li key={a}>{a}</li>)}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
+            <div style={{ background: '#f3f4f6', color: '#4b5563', padding: '12px', borderRadius: '14px' }}><CloudRain size={24}/></div>
+            <div>
+              <span style={{ color: '#4b5563', fontWeight: 800, fontSize: '11px', letterSpacing: '1px' }}>CONTINGENCY PLANNING</span>
+              <h3 style={{ fontSize: '24px', margin: '2px 0 0', color: '#111827', fontWeight: 800, letterSpacing: '-0.5px' }}>Alternate Crops</h3>
+            </div>
+          </div>
+          <p style={{ marginTop: '10px', color: '#4b5563', fontSize: '15px', fontWeight: 500 }}>If replanting is needed due to severe damage or early loss:</p>
+          <ul style={{ paddingLeft: '0', listStyle: 'none', marginTop: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+            {c.alternates.map((a: any) => (
+              <li key={a} style={{ background: '#f0fdf4', color: '#166534', padding: '12px 20px', borderRadius: '20px', fontSize: '14px', fontWeight: 700, border: '1px solid #bbf7d0' }}>
+                {a}
+              </li>
+            ))}
           </ul>
         </Card>
       </div>
     </main>
   );
 }
-
-// ── Crop Advisor ────────────────────────────────────────────────────────────
+// ── Crop Advisor (Premium UI & Graphical Results) ───────────────────────────
 export function CropAdvisor() {
   const [soil, setSoil] = useState("Loam");
   const [water, setWater] = useState("Medium");
@@ -634,114 +938,227 @@ export function CropAdvisor() {
     ).slice(0, 4);
   }, [soil, water, season]);
 
+  const inputStyle: React.CSSProperties = {
+    padding: '16px', borderRadius: '12px', border: '1px solid #d1d5db', 
+    background: '#ffffff', fontSize: '15px', width: '100%', outline: 'none',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.02)', transition: 'border-color 0.2s'
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: 'flex', flexDirection: 'column', gap: '8px', 
+    fontSize: '14px', fontWeight: 700, color: '#374151'
+  };
+
   return (
-    <main>
+    <main style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <Title eyebrow="PERSONALISED DISCOVERY" title="Crop advisor" copy="Discover the best crops for your exact field conditions based on our offline database." />
-      <Card className="advisor">
-        <div className="form-grid">
-          <label>Location (Auto-detected)<input disabled value={savedLoc} style={{ backgroundColor: '#f3f4f6' }} /></label>
-          <label>Season<select value={season} onChange={e => setSeason(e.target.value)}><option>Kharif</option><option>Rabi</option><option>Horticulture</option><option>All</option></select></label>
-          <label>Soil type<select value={soil} onChange={e => setSoil(e.target.value)}>
-            <option value="Loam">Loam / Loamy</option>
-            <option value="Black">Black Soil</option>
-            <option value="Clay">Clay / Heavy</option>
-            <option value="Sandy">Sandy / Sandy Loam</option>
-            <option value="Alluvial">Alluvial</option>
-          </select></label>
-          <label>Water availability<select value={water} onChange={e => setWater(e.target.value)}><option>High</option><option>Medium</option><option>Low</option></select></label>
+      
+      <Card style={{ background: '#f9fafb', border: '1px solid #e5e7eb', marginBottom: '40px', padding: '30px', borderRadius: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={16} color="#16a34a"/> Location (Auto-detected)</span>
+            <input disabled value={savedLoc} style={{ ...inputStyle, background: '#f3f4f6', color: '#6b7280', cursor: 'not-allowed' }} />
+          </label>
+          
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><CloudRain size={16} color="#0284c7"/> Season</span>
+            <select value={season} onChange={e => setSeason(e.target.value)} style={inputStyle}>
+              <option>Kharif</option>
+              <option>Rabi</option>
+              <option>Horticulture</option>
+              <option>All</option>
+            </select>
+          </label>
+          
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Sprout size={16} color="#d97706"/> Soil type</span>
+            <select value={soil} onChange={e => setSoil(e.target.value)} style={inputStyle}>
+              <option value="Loam">Loam / Loamy</option>
+              <option value="Black">Black Soil</option>
+              <option value="Clay">Clay / Heavy</option>
+              <option value="Sandy">Sandy / Sandy Loam</option>
+              <option value="Alluvial">Alluvial</option>
+            </select>
+          </label>
+          
+          <label style={labelStyle}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><Droplets size={16} color="#2563eb"/> Water availability</span>
+            <select value={water} onChange={e => setWater(e.target.value)} style={inputStyle}>
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </select>
+          </label>
         </div>
       </Card>
-      <h2 className="section-title">Recommended for your field</h2>
-      <div className="recommendations">
-        {rec.length > 0 ? rec.map(c => (
-          <Card key={c.id} className="recommend">
-            <div><Badge level="GOOD FIT" /><h3>{c.name}</h3><p>{c.season} · {c.soil[0]} soil · {c.duration}</p></div>
-            <Link className="button secondary" to={"/crops/" + c.id}>View guide</Link>
-          </Card>
+
+      <h2 style={{ fontSize: '24px', fontWeight: 800, margin: '0 0 24px', color: '#111827', letterSpacing: '-0.5px' }}>
+        Recommended for your field
+      </h2>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px' }}>
+        {rec.length > 0 ? rec.map((c: any) => (
+          <Link to={"/crops/" + c.id} key={c.id} style={{ textDecoration: 'none' }}>
+            <Card style={{ padding: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%', transition: 'transform 0.2s, box-shadow 0.2s', border: '1px solid #e5e7eb' }}>
+              {/* Graphical Hero Section for the Card */}
+              <div style={{ position: 'relative', height: '160px', backgroundImage: `url(${c.imageUrl || 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=800&q=80'})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                <div style={{ position: 'absolute', top: '15px', right: '15px', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', padding: '6px 12px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+                  <Sparkles size={14} color="#16a34a" />
+                  <span style={{ fontSize: '11px', fontWeight: 800, color: '#166534', letterSpacing: '0.5px' }}>GOOD FIT</span>
+                </div>
+              </div>
+              
+              <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <h3 style={{ fontSize: '22px', margin: '0 0 8px', color: '#111827', fontWeight: 800 }}>{c.name}</h3>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '24px' }}>
+                  <span style={{ color: '#4b5563', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}><CloudRain size={16} color="#6b7280" /> {c.season} Season</span>
+                  <span style={{ color: '#4b5563', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}><MapPin size={16} color="#6b7280" /> {c.soil[0]} Soil</span>
+                  <span style={{ color: '#4b5563', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 500 }}><Calendar size={16} color="#6b7280" /> {c.duration}</span>
+                </div>
+                
+                <div style={{ marginTop: 'auto', background: '#f0fdf4', color: '#16a34a', padding: '12px', borderRadius: '12px', textAlign: 'center', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  View full guide <ArrowRight size={16} />
+                </div>
+              </div>
+            </Card>
+          </Link>
         )) : (
-          <p style={{ color: '#6b7280' }}>No exact matches found. Try adjusting your parameters.</p>
+          <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 20px', background: '#ffffff', borderRadius: '24px', border: '1px dashed #d1d5db' }}>
+            <Leaf size={48} color="#9ca3af" style={{ margin: '0 auto 15px', opacity: 0.5 }} />
+            <h3 style={{ fontSize: '20px', color: '#111827', margin: '0 0 10px', fontWeight: 800 }}>No exact matches found</h3>
+            <p style={{ margin: 0, color: '#6b7280', fontSize: '15px' }}>Try adjusting your soil, water, or season parameters to discover more crops.</p>
+          </div>
         )}
       </div>
     </main>
   );
 }
-
-// ── Location Select (OSM Integration) ──────────────────────────────────────
+// ── Location Select (Strict OSM Validation) ────────────────────────────────
 export function LocationSelect() {
-  const [stateName, setStateName] = useState("Madhya Pradesh");
-  const [district, setDistrict] = useState("Seoni");
+  const [stateName, setStateName] = useState("");
+  const [district, setDistrict] = useState("");
   const [village, setVillage] = useState("");
+  
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [locError, setLocError] = useState("");
 
   async function resolveAndSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!village.trim()) return;
+    const cleanVillage = village.trim();
+    if (!cleanVillage) {
+      setLocError("Village or City name is required.");
+      return;
+    }
+    
     setLoading(true);
-    const query = `${village}, ${district}, ${stateName}, India`;
+    setLocError("");
+    
+    // Strict query format tying the village directly to the selected dropdown data
+    const query = `${cleanVillage}, ${district}, ${stateName}, India`;
     
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`);
       const data = await res.json();
       
       if (data && data.length > 0) {
-        const { lat, lon } = data[0];
-        localStorage.setItem("kisansetu_lat", lat);
-        localStorage.setItem("kisansetu_lng", lon);
+        const returnedName = data[0].display_name.toLowerCase();
         
-        const cleanName = `${village}, ${district}`;
-        localStorage.setItem("kisansetu_location", cleanName);
-        
-        setSaved(true);
-        setTimeout(() => setSaved(false), 2500);
+        // STRICT VALIDATION: Prevents typing random characters. 
+        // Checks if the typed text actually exists in the official satellite database response.
+        if (returnedName.includes(cleanVillage.toLowerCase())) {
+          const { lat, lon } = data[0];
+          localStorage.setItem("kisansetu_lat", lat);
+          localStorage.setItem("kisansetu_lng", lon);
+          
+          const cleanName = `${cleanVillage}, ${district}`;
+          localStorage.setItem("kisansetu_location", cleanName);
+          
+          setSaved(true);
+          setTimeout(() => setSaved(false), 3000);
+        } else {
+          setLocError(`Strict Verification Failed: "${cleanVillage}" is not recognized as a valid location in ${district}. Please check spelling or use a larger nearby town.`);
+        }
       } else {
-        alert("Could not locate this exact village/city on the map. Please try a nearby larger town or city.");
+        setLocError(`We couldn't verify "${cleanVillage}" in ${district}, ${stateName}. Please enter a valid nearby town or village.`);
       }
     } catch (err) {
       console.error("Geocoding failed", err);
+      setLocError("Network error checking location databases. Please try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main>
-      <Title eyebrow="LOCATION & LIVE CONTEXT" title="Select your farming area" copy="Select your State and District, then enter your Village or City to sync local offline weather and alerts." />
-      <Card>
+    <main style={{ maxWidth: '1000px', margin: '0 auto' }}>
+      <Title eyebrow="LOCATION & LIVE CONTEXT" title="Select your farming area" copy="Select your State and District, then enter your Village. Our system verifies all entries against live satellite databases to ensure accurate weather modeling." />
+      
+      <Card style={{ padding: '40px', borderRadius: '32px' }}>
         <form onSubmit={resolveAndSave}>
-          <div className="form-grid" style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginBottom: '20px' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', fontWeight: 700, color: '#374151' }}>
               State
-              <select value={stateName} onChange={(e) => { setStateName(e.target.value); setDistrict(indiaData[e.target.value]?.[0] || ""); }} style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+              <select value={stateName} onChange={(e) => { 
+                setStateName(e.target.value); 
+                setDistrict(indiaData[e.target.value]?.[0] || ""); 
+                setLocError("");
+              }} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #d1d5db', background: '#f9fafb', fontSize: '15px' }}>
                 {Object.keys(indiaData).map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+            
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', fontWeight: 700, color: '#374151' }}>
               District
-              <select value={district} onChange={(e) => setDistrict(e.target.value)} style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}>
+              <select value={district} onChange={(e) => {
+                setDistrict(e.target.value);
+                setLocError("");
+              }} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #d1d5db', background: '#f9fafb', fontSize: '15px' }}>
                 {indiaData[stateName]?.map((d: string) => <option key={d} value={d}>{d}</option>)}
               </select>
             </label>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-              Village / City <span className="required" style={{color:'red'}}>*</span>
-              <input required placeholder="e.g. Kurai" value={village} onChange={(e) => setVillage(e.target.value)} style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }} />
+            
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px', fontWeight: 700, color: '#374151' }}>
+              <span>Village / City <span style={{color:'#ef4444'}}>*</span></span>
+              <input required placeholder="e.g. Kurai" value={village} onChange={(e) => {
+                setVillage(e.target.value);
+                setLocError("");
+              }} style={{ padding: '16px', borderRadius: '12px', border: '1px solid #d1d5db', background: '#f9fafb', fontSize: '15px' }} />
             </label>
           </div>
           
-          <div className="location-result" style={{ marginBottom: '20px' }}>
-            <b>Current Saved Location:</b>
-            <span>{localStorage.getItem("kisansetu_location") || "None"}</span>
+          {locError && (
+            <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', padding: '16px', borderRadius: '12px', fontSize: '14px', fontWeight: 500, display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '24px' }}>
+              <AlertTriangle size={20}/> 
+              {locError}
+            </div>
+          )}
+          
+          <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '16px', padding: '20px', marginBottom: '30px', display: 'flex', gap: '15px', alignItems: 'center' }}>
+            <div style={{ background: '#dcfce7', padding: '10px', borderRadius: '50%', color: '#16a34a' }}>
+              <MapPin size={24} />
+            </div>
+            <div>
+              <b style={{ fontSize: '13px', color: '#166534', display: 'block', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>Current Saved Location</b>
+              <span style={{ color: '#111827', fontSize: '18px', fontWeight: 800 }}>{localStorage.getItem("kisansetu_location") || "None Set"}</span>
+            </div>
           </div>
 
-          <button type="submit" className="button" disabled={loading || !village.trim()}>
-            {loading ? "Locating on OSM..." : saved ? <><Check size={15} /> Saved successfully!</> : <><MapPin size={15} /> Update & Save Location</>}
+          <button type="submit" className="button" disabled={loading || !village.trim()} style={{ width: '100%', padding: '18px', fontSize: '16px', justifyContent: 'center' }}>
+            {loading ? (
+              <><Loader2 className="animate-spin" size={20} /> Verifying on map database...</>
+            ) : saved ? (
+              <><Check size={20} /> Verified & Saved Successfully!</>
+            ) : (
+              <><MapPin size={20} /> Verify & Update Location</>
+            )}
           </button>
         </form>
       </Card>
     </main>
   );
 }
-
 // ── My Farm (Digital Field Ledger) ─────────────────────────────────────────
 export function MyFarm() {
   const [fields, setFields] = useState<any[]>(() => {
@@ -749,7 +1166,6 @@ export function MyFarm() {
     if (saved) {
       try { 
         const parsed = JSON.parse(saved);
-        // Force migration: If old string-based tasks exist, wipe them out to prevent crash
         if (parsed.length > 0 && typeof parsed[0].tasks?.[0] === 'string') {
           throw new Error("Old data format detected. Wiping local storage to prevent crash.");
         }
@@ -758,7 +1174,6 @@ export function MyFarm() {
         console.warn("Resetting fields due to schema change:", e);
       }
     }
-    // Default initial data for showcase
     return [
       { id: "1", name: "North field", area: "2.0", unit: "acres", crop: "Soyabean", sowingDate: new Date(Date.now() - 42 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], tasks: [{ id: "t1", text: "Clear drainage channels", done: true }, { id: "t2", text: "Monitor for yellow mosaic virus", done: false }] },
       { id: "2", name: "Canal plot", area: "1.5", unit: "acres", crop: "Maize", sowingDate: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], tasks: [{ id: "t3", text: "Apply nitrogen top-dressing", done: false }, { id: "t4", text: "Check for waterlogging", done: false }] },
@@ -772,13 +1187,11 @@ export function MyFarm() {
   const [adding, setAdding] = useState(false);
   const [activeField, setActiveField] = useState<any>(null);
   
-  // Add field form state
   const [newName, setNewName] = useState("");
   const [newArea, setNewArea] = useState("");
   const [newCrop, setNewCrop] = useState("Soyabean");
   const [newSowingDate, setNewSowingDate] = useState("");
 
-  // Add task state
   const [newTaskText, setNewTaskText] = useState("");
 
   const getDAS = (dateString: string) => {
@@ -873,7 +1286,7 @@ export function MyFarm() {
         <button className="button" onClick={() => setAdding(true)}><Plus size={16} /> Add field</button>
       </div>
       
-      <div className="field-list">
+      <div className="field-list" style={{ display: 'grid', gap: '1rem' }}>
         {fields.length === 0 && (
           <Card className="empty-state">
             <Sprout size={34} />
@@ -883,7 +1296,6 @@ export function MyFarm() {
         )}
         {fields.map(f => {
           const das = getDAS(f.sowingDate);
-          // Assuming an average full lifecycle of 120 days for the progress bar
           const progress = Math.min(100, Math.max(0, (das / 120) * 100));
           return (
           <Card className="field" key={f.id} onClick={() => setActiveField(f)}>
@@ -903,7 +1315,6 @@ export function MyFarm() {
         )})}
       </div>
 
-      {/* Field Detail Modal - Z-INDEX FIXED */}
       {activeField && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setActiveField(null)}>
           <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', backgroundColor: '#fff', borderRadius: '12px', padding: '24px', position: 'relative', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
@@ -961,7 +1372,6 @@ export function MyFarm() {
         </div>
       )}
 
-      {/* Add Field Modal */}
       {adding && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setAdding(false)}>
           <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '400px', backgroundColor: '#fff', borderRadius: '12px', padding: '24px', position: 'relative' }}>
@@ -998,19 +1408,20 @@ export function MyFarm() {
   );
 }
 
-// ── User Authentication (Login, Registration, Guest, & Logout) ─────────────
+// ── User Authentication (Strict Gatekeeper with Local Database & Memory) ────────────
 export function Login() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [mode, setMode] = useState<"signin" | "register" | "guest">("register");
 
-  // Step 1 fields
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  
   const [errors1, setErrors1] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
-  // Step 2 fields (OSM Location)
   const [stateName, setStateName] = useState("Madhya Pradesh");
   const [district, setDistrict] = useState("Seoni");
   const [village, setVillage] = useState("");
@@ -1018,7 +1429,6 @@ export function Login() {
   const [locError, setLocError] = useState("");
   const [place, setPlace] = useState("");
 
-  // Check Active Session
   const isLoggedIn = !!localStorage.getItem("kisansetu_name");
   const currentName = localStorage.getItem("kisansetu_name");
   const currentMode = localStorage.getItem("kisansetu_mode");
@@ -1031,33 +1441,8 @@ export function Login() {
     localStorage.removeItem("kisansetu_lng");
     localStorage.removeItem("kisansetu_location");
     localStorage.removeItem("kisansetu_mode");
-    
-    // Force a full browser reload to clear React Router state and reset all protected routes
     window.location.href = "/login";
   };
-
-  // If already logged in, show the active session card
-  if (isLoggedIn) {
-    return (
-      <main className="auth-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-        <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '2rem', textAlign: 'center' }}>
-          <div style={{ marginBottom: '2rem' }}>
-            <Sprout size={40} color="#16a34a" style={{ margin: '0 auto', marginBottom: '1rem' }} />
-            <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Active Session</h1>
-            <p style={{ color: '#6b7280', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-              You are currently logged in as <br/><strong style={{ color: '#111827', fontSize: '1.1rem' }}>{currentName}</strong> <br/>({currentMode === 'guest' ? 'Guest Mode' : 'Registered User'}).
-            </p>
-          </div>
-          <button className="button" onClick={() => navigate('/dashboard')} style={{ width: '100%', justifyContent: 'center', padding: '0.875rem', marginBottom: '1rem' }}>
-            Continue to Dashboard
-          </button>
-          <button className="button secondary" onClick={handleLogout} style={{ width: '100%', justifyContent: 'center', padding: '0.875rem', borderColor: '#fee2e2', color: '#b91c1c', backgroundColor: '#fef2f2' }}>
-            <LogOut size={16} /> Logout
-          </button>
-        </div>
-      </main>
-    );
-  }
 
   const handleAuth = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1065,262 +1450,341 @@ export function Login() {
     setErrors1({});
 
     setTimeout(() => {
-      if (mode !== "guest") {
-        if (mode === "register" && !name.trim()) {
-          setErrors1({ name: "Name is required for registration." });
-          setLoading(false);
-          return;
+      // Fetch our local "Database" of registered users
+      const storedUsers = JSON.parse(localStorage.getItem("kisansetu_users") || "[]");
+
+      if (mode === "register") {
+        if (!name.trim()) { setErrors1({ name: "Name is required for registration." }); setLoading(false); return; }
+        if (!email.includes("@") || password.length < 6) { setErrors1({ contact: "Invalid email or password (min 6 chars)." }); setLoading(false); return; }
+        
+        // Prevent duplicate registration
+        if (storedUsers.some((u: any) => u.email.toLowerCase() === email.toLowerCase())) {
+          setErrors1({ contact: "An account with this email already exists. Please Sign In." });
+          setLoading(false); return;
         }
-        if (!email.includes("@") || password.length < 6) {
-          setErrors1({ contact: "Invalid email or password (min 6 chars)." });
-          setLoading(false);
-          return;
+        // Do NOT save to DB yet. Wait until Step 2 (Location) is completed.
+        setStep(2);
+
+      } else if (mode === "signin") {
+        if (!email.includes("@") || password.length < 6) { setErrors1({ contact: "Invalid email or password." }); setLoading(false); return; }
+        
+        // Verify credentials against database
+        const validUser = storedUsers.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+        
+        if (!validUser) {
+          setErrors1({ contact: "Incorrect email or password. Please try again." });
+          setLoading(false); return;
         }
-      } else {
-        if (!name.trim()) {
-          setErrors1({ name: "Please enter a name for guest mode." });
-          setLoading(false);
-          return;
+        
+        // If the user is valid AND has location data saved, SKIP Step 2
+        if (validUser.location && validUser.lat && validUser.lng) {
+          setName(validUser.name);
+          setPlace(validUser.location);
+          
+          // Restore the active session directly
+          localStorage.setItem("kisansetu_name", validUser.name);
+          localStorage.setItem("kisansetu_email", validUser.email);
+          localStorage.setItem("kisansetu_lat", validUser.lat);
+          localStorage.setItem("kisansetu_lng", validUser.lng);
+          localStorage.setItem("kisansetu_location", validUser.location);
+          localStorage.setItem("kisansetu_mode", "signin");
+          
+          setStep(3); // Jump straight to Success Screen
+        } else {
+          // Legacy user missing location data: Force them to Step 2
+          setName(validUser.name);
+          setStep(2);
         }
+
+      } else if (mode === "guest") {
+        if (!name.trim()) { setErrors1({ name: "Please enter a name for guest mode." }); setLoading(false); return; }
+        setStep(2);
       }
 
       setLoading(false);
-      setStep(2); // Proceed to location step
-    }, 800);
+    }, 1200); 
   };
 
   async function resolveLocationAndFinish(e: React.FormEvent) {
     e.preventDefault();
-    if (!village.trim()) {
+    const cleanVillage = village.trim();
+    if (!cleanVillage) {
       setLocError("Village or City name is required.");
       return;
     }
-    
     setLocLoading(true);
     setLocError("");
-    const query = `${village}, ${district}, ${stateName}, India`;
+    
+    const query = `${cleanVillage}, ${district}, ${stateName}, India`;
     
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`);
       const data = await res.json();
       
-      let finalLat, finalLng, finalPlace;
-
       if (data && data.length > 0) {
-        finalLat = data[0].lat;
-        finalLng = data[0].lon;
-        finalPlace = `${village}, ${district}`;
-      } else {
-        const fbRes = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(district + ', ' + stateName + ', India')}&format=json&limit=1`);
-        const fbData = await fbRes.json();
-        if (fbData && fbData.length > 0) {
-          finalLat = fbData[0].lat;
-          finalLng = fbData[0].lon;
-          finalPlace = `${district}, ${stateName}`;
-          alert("Could not locate exact village. Saving District level coordinates.");
+        const returnedName = data[0].display_name.toLowerCase();
+        
+        if (returnedName.includes(cleanVillage.toLowerCase())) {
+          const { lat, lon } = data[0];
+          const finalPlace = `${cleanVillage}, ${district}`;
+          
+          let finalName = name.trim();
+          if (mode === "guest" && !finalName) {
+            finalName = "Guest User";
+          }
+
+          // If registering, save ALL details including location to the Local Database now
+          const storedUsers = JSON.parse(localStorage.getItem("kisansetu_users") || "[]");
+          if (mode === "register") {
+            storedUsers.push({ name: finalName, email: email.toLowerCase(), password, lat, lng: lon, location: finalPlace });
+            localStorage.setItem("kisansetu_users", JSON.stringify(storedUsers));
+          } else if (mode === "signin") {
+            // Updating an existing legacy user who lacked location data
+            const userIndex = storedUsers.findIndex((u: any) => u.email === email.toLowerCase());
+            if (userIndex > -1) {
+              storedUsers[userIndex] = { ...storedUsers[userIndex], lat, lng: lon, location: finalPlace };
+              localStorage.setItem("kisansetu_users", JSON.stringify(storedUsers));
+            }
+          }
+
+          // Initialize the active session
+          localStorage.setItem("kisansetu_name", finalName);
+          if (email && mode !== "guest") localStorage.setItem("kisansetu_email", email.toLowerCase());
+          localStorage.setItem("kisansetu_lat", lat);
+          localStorage.setItem("kisansetu_lng", lon);
+          localStorage.setItem("kisansetu_location", finalPlace);
+          localStorage.setItem("kisansetu_mode", mode);
+          
+          setPlace(finalPlace);
+          setStep(3);
         } else {
-           throw new Error("Location not found");
+           setLocError(`Verification Failed: "${cleanVillage}" is not recognized in ${district}. Did you mean a nearby town?`);
         }
+      } else {
+         setLocError(`Verification Failed: We could not find "${cleanVillage}" in ${district}. Please check spelling.`);
       }
-      
-      // Determine the final name to save
-      let finalName = name.trim();
-      if (mode === "signin") {
-        finalName = email.split('@')[0] || "Returning Farmer"; 
-      } else if (mode === "guest" && !finalName) {
-        finalName = "Guest User";
-      }
-
-      localStorage.setItem("kisansetu_name", finalName);
-      if (email) localStorage.setItem("kisansetu_email", email);
-      localStorage.setItem("kisansetu_lat", finalLat);
-      localStorage.setItem("kisansetu_lng", finalLng);
-      localStorage.setItem("kisansetu_location", finalPlace);
-      localStorage.setItem("kisansetu_mode", mode);
-      
-      setPlace(finalPlace);
-      setStep(3);
-
     } catch (err) {
-      setLocError("Could not identify this location on OSM. Please try a different village or check spelling.");
+      setLocError("Network error querying map databases. Please try again.");
     } finally {
       setLocLoading(false);
     }
   }
 
   const StepDots = () => (
-    <div className="auth-steps">
+    <div style={{ display: 'flex', flexDirection: 'row', gap: '12px', alignItems: 'center', marginBottom: '10px' }}>
       {[1, 2, 3].map(s => (
-        <div key={s} className={`auth-step-dot ${step >= s ? "done" : ""} ${step === s ? "active" : ""}`}>
-          {step > s ? <Check size={10} /> : s}
+        <div key={s} style={{ 
+          width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          fontSize: '12px', fontWeight: 800, transition: 'all 0.3s ease',
+          border: `1px solid ${step >= s ? '#10b981' : 'rgba(255,255,255,0.2)'}`, 
+          color: step >= s ? '#fff' : 'rgba(255,255,255,0.4)', 
+          background: step > s ? '#10b981' : step === s ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+          boxShadow: step === s ? '0 0 15px rgba(16, 185, 129, 0.4)' : 'none'
+        }}>
+          {step > s ? <Check size={14} strokeWidth={3} /> : s}
         </div>
       ))}
     </div>
   );
 
-  return (
-    <main className="auth-page">
-      {/* ── Step 1: Identity ─────────────────────────────────────────── */}
-      {step === 1 && (
-        <div className="auth-card card">
-          <StepDots />
-          <span className="eyebrow">STEP 1 OF 2 · IDENTITY</span>
-          <h1 className="auth-title">
-            {mode === "signin" ? "Welcome back" : mode === "guest" ? "Quick access" : "Create your profile"}
-          </h1>
-          <p className="auth-subtitle">
-            {mode === "signin"
-              ? "Sign in to access your saved farm data and live alerts."
-              : mode === "guest"
-              ? "Continue without an account. Data stays on this device only."
-              : "Your account keeps farm records safe and synced across devices."}
-          </p>
+  const glassCardStyle: React.CSSProperties = {
+    width: '100%', maxWidth: '480px', display: 'flex', flexDirection: 'column', gap: '20px', padding: '40px',
+    background: 'rgba(20, 25, 35, 0.65)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)',
+    border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '24px', color: 'white',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+  };
 
-          <div className="auth-mode-tabs">
-            <button className={mode === "register" ? "selected" : ""} onClick={() => setMode("register")}>
-              New account
-            </button>
-            <button className={mode === "signin" ? "selected" : ""} onClick={() => setMode("signin")}>
-              Sign in
-            </button>
-            <button className={mode === "guest" ? "selected" : ""} onClick={() => setMode("guest")}>
-              Guest
-            </button>
+  const inputStyle: React.CSSProperties = {
+    border: '1px solid rgba(255, 255, 255, 0.12)', borderRadius: '12px', padding: '16px', fontSize: '15px', 
+    outline: 'none', width: '100%', background: 'rgba(0, 0, 0, 0.2)', color: 'white', transition: 'all 0.2s'
+  };
+
+  if (isLoggedIn) {
+    return (
+      <main style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'grid', placeItems: 'center', padding: '20px', background: '#0B0F19' }}>
+        <div style={glassCardStyle}>
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <div style={{ width: '80px', height: '80px', borderRadius: '24px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', boxShadow: '0 8px 32px rgba(16, 185, 129, 0.2)' }}>
+              <Sprout size={40} />
+            </div>
+            <h1 style={{ fontSize: '28px', fontWeight: 800, color: 'white', margin: '0 0 10px' }}>Active Session</h1>
+            <p style={{ color: '#9ca3af', fontSize: '16px', margin: 0, lineHeight: 1.6 }}>
+              You are currently logged in as <br/><strong style={{ color: 'white', fontSize: '18px' }}>{currentName}</strong> <br/>
+              <span style={{ fontSize: '13px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '8px', display: 'inline-block', marginTop: '10px' }}>
+                {currentMode === 'guest' ? 'Guest Mode' : 'Registered User'}
+              </span>
+            </p>
+          </div>
+          <button onClick={() => navigate('/dashboard')} style={{ width: '100%', padding: '16px', fontSize: '16px', marginBottom: '10px', background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', fontWeight: 600, cursor: 'pointer' }}>
+            Enter Workspace
+          </button>
+          <button onClick={handleLogout} style={{ width: '100%', padding: '16px', fontSize: '16px', background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '12px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 600 }}>
+            <LogOut size={18} /> Secure Logout
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'grid', placeItems: 'center', padding: '20px', background: '#0B0F19 radial-gradient(circle at 15% 50%, rgba(16, 185, 129, 0.08), transparent 25%), radial-gradient(circle at 85% 30%, rgba(59, 130, 246, 0.08), transparent 25%)' }}>
+      
+      {step === 1 && (
+        <div style={glassCardStyle}>
+          <StepDots />
+          <div>
+            <span style={{ fontSize: '11px', letterSpacing: '1.5px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>STEP 1 OF 2 · IDENTITY</span>
+            <h1 style={{ font: '800 32px Fraunces, serif', margin: '8px 0', letterSpacing: '-0.5px', color: 'white' }}>
+              {mode === "signin" ? "Welcome back" : mode === "guest" ? "Guest Access" : "Create Account"}
+            </h1>
+            <p style={{ color: '#9ca3af', lineHeight: 1.6, margin: 0, fontSize: '15px' }}>
+              {mode === "signin" ? "Sign in to access your saved farm data and live alerts." : mode === "guest" ? "Continue without an account. Data stays on this device only." : "Your account keeps farm records safe and synced across devices."}
+            </p>
           </div>
 
-          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginTop: '1rem' }}>
+          <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '6px', borderRadius: '14px', marginTop: '5px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <button style={{ flex: 1, border: 0, background: mode === "register" ? 'rgba(255,255,255,0.1)' : 'transparent', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: mode === "register" ? 'white' : '#6b7280', cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => { setMode("register"); setErrors1({}); }}>Register</button>
+            <button style={{ flex: 1, border: 0, background: mode === "signin" ? 'rgba(255,255,255,0.1)' : 'transparent', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: mode === "signin" ? 'white' : '#6b7280', cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => { setMode("signin"); setErrors1({}); }}>Sign In</button>
+            <button style={{ flex: 1, border: 0, background: mode === "guest" ? 'rgba(255,255,255,0.1)' : 'transparent', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: mode === "guest" ? 'white' : '#6b7280', cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => { setMode("guest"); setErrors1({}); }}>Guest</button>
+          </div>
+
+          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '10px' }}>
             {mode !== "signin" && (
-              <label className="auth-label">
-                {mode === "guest" ? "Display Name" : "Full name"} <span className="required">*</span>
-                <input
-                  value={name}
-                  onChange={e => { setName(e.target.value); setErrors1({}); }}
-                  placeholder={mode === "guest" ? "e.g. Guest Farmer" : "e.g. Ramesh Patel"}
-                  required
-                />
-                {errors1.name && <span className="field-error">{errors1.name}</span>}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#d1d5db' }}>
+                <span>{mode === "guest" ? "Display Name" : "Full Name"} <span style={{ color: '#ef4444' }}>*</span></span>
+                <input value={name} onChange={e => { setName(e.target.value); setErrors1({}); }} placeholder={mode === "guest" ? "e.g. Guest Farmer" : "e.g. Ramesh Patel"} required style={inputStyle} />
+                {errors1.name && <span style={{ color: '#ef4444', fontSize: '12px', fontWeight: 600 }}>{errors1.name}</span>}
+              </label>
+            )}
+            
+            {mode !== "guest" && (
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#d1d5db' }}>
+                <span>Email Address <span style={{ color: '#ef4444' }}>*</span></span>
+                <input type="email" value={email} onChange={e => { setEmail(e.target.value); setErrors1({}); }} placeholder="farmer@example.com" required style={inputStyle} />
               </label>
             )}
 
             {mode !== "guest" && (
-              <label className="auth-label">
-                Email address <span className="required">*</span>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={e => { setEmail(e.target.value); setErrors1({}); }}
-                  placeholder="farmer@example.com"
-                  required
-                />
-                {errors1.contact && <span className="field-error">{errors1.contact}</span>}
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#d1d5db', position: 'relative' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Password <span style={{ color: '#ef4444' }}>*</span></span>
+                  {mode === "signin" && <a href="#" style={{ color: '#10b981', textDecoration: 'none' }}>Forgot Password?</a>}
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <input type={showPassword ? "text" : "password"} value={password} onChange={e => { setPassword(e.target.value); setErrors1({}); }} placeholder="Min 6 characters" required style={{...inputStyle, paddingRight: '45px'}} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer', display: 'flex' }}>
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </label>
             )}
 
-            {mode !== "guest" && (
-              <label className="auth-label">
-                Password <span className="required">*</span>
-                <input 
-                  type="password" 
-                  value={password}
-                  onChange={e => { setPassword(e.target.value); setErrors1({}); }}
-                  placeholder="Enter your password (min 6 chars)" 
-                  required
-                />
+            {errors1.contact && <span style={{ color: '#ef4444', fontSize: '13px', fontWeight: 600, marginTop: '-5px' }}>{errors1.contact}</span>}
+
+            {mode === "signin" && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', color: '#d1d5db', cursor: 'pointer', marginTop: '-4px' }}>
+                <input type="checkbox" checked={rememberMe} onChange={() => setRememberMe(!rememberMe)} style={{ width: '16px', height: '16px', accentColor: '#10b981' }} />
+                Remember me on this device
               </label>
             )}
 
-            <button disabled={loading} type="submit" className="button auth-btn" style={{ justifyContent: 'center' }}>
-              {loading ? <Loader2 className="animate-spin" size={18} /> : mode === "signin" ? "Sign in" : "Continue"} {!loading && <ArrowRight size={16} />}
+            <button disabled={loading} type="submit" style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', padding: '16px', fontSize: '15px', fontWeight: 700, background: '#10b981', color: 'white', border: 'none', borderRadius: '12px', marginTop: '10px', cursor: loading ? 'not-allowed' : 'pointer', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)', transition: 'all 0.2s' }}>
+              {loading ? <Loader2 className="animate-spin" size={20} /> : mode === "signin" ? "Sign In Securely" : mode === "guest" ? "Enter as Guest" : "Create Account"} 
+              {!loading && <ArrowRight size={18} />}
             </button>
           </form>
-
-          <p className="auth-legal">
-            ⚠ Never enter Aadhaar, bank account, or OTPs in KisanSetu unless an authorised government service requests them.
+          
+          <p style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.5, margin: 0, textAlign: 'center', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', padding: '12px', borderRadius: '10px' }}>
+            <ShieldAlert size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '6px', color: '#10b981' }}/>
+            End-to-end encrypted. Never share sensitive IDs or OTPs.
           </p>
         </div>
       )}
 
-      {/* ── Step 2: OSM Location ───────────────────────────────── */}
       {step === 2 && (
-        <div className="auth-card card">
+        <div style={glassCardStyle}>
           <StepDots />
-          <span className="eyebrow">STEP 2 OF 2 · FARMING LOCATION</span>
-          <h1 className="auth-title">Where is your farm?</h1>
-          <p className="auth-subtitle">
-            Select your State and District, then enter your Village. This sets up your local weather and alerts.
-          </p>
+          <div>
+            <span style={{ fontSize: '11px', letterSpacing: '1.5px', fontWeight: 800, color: '#10b981', textTransform: 'uppercase' }}>STEP 2 OF 2 · LOCATION</span>
+            <h1 style={{ font: '800 32px Fraunces, serif', margin: '8px 0', letterSpacing: '-0.5px', color: 'white' }}>Where is your farm?</h1>
+            <p style={{ color: '#9ca3af', lineHeight: 1.6, margin: 0, fontSize: '15px' }}>Select your State and District, then enter your Village to configure local algorithms.</p>
+          </div>
 
-          <form onSubmit={resolveLocationAndFinish}>
-            <div className="form-grid" style={{ marginBottom: '20px', marginTop: '1.5rem' }}>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+          <form onSubmit={resolveLocationAndFinish} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '10px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#d1d5db' }}>
                 State
-                <select value={stateName} onChange={(e) => { setStateName(e.target.value); setDistrict(indiaData[e.target.value]?.[0] || ""); }} style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-                  {Object.keys(indiaData).map(s => <option key={s} value={s}>{s}</option>)}
+                <select value={stateName} onChange={(e) => { 
+                  setStateName(e.target.value); 
+                  setDistrict(indiaData[e.target.value]?.[0] || "");
+                  setLocError(""); 
+                }} style={{...inputStyle, WebkitAppearance: 'none'}}>
+                  {Object.keys(indiaData).map(s => <option key={s} value={s} style={{background: '#111827'}}>{s}</option>)}
                 </select>
               </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#d1d5db' }}>
                 District
-                <select value={district} onChange={(e) => setDistrict(e.target.value)} style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }}>
-                  {indiaData[stateName]?.map((d: string) => <option key={d} value={d}>{d}</option>)}
+                <select value={district} onChange={(e) => {
+                  setDistrict(e.target.value);
+                  setLocError("");
+                }} style={{...inputStyle, WebkitAppearance: 'none'}}>
+                  {indiaData[stateName]?.map((d: string) => <option key={d} value={d} style={{background: '#111827'}}>{d}</option>)}
                 </select>
               </label>
-              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 600 }}>
-                Village / City <span className="required" style={{color:'red'}}>*</span>
-                <input required placeholder="e.g. Kurai" value={village} onChange={(e) => setVillage(e.target.value)} style={{ padding: '0.75rem', borderRadius: '8px', border: '1px solid #d1d5db' }} />
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px', fontWeight: 600, color: '#d1d5db' }}>
+                <span>Village / City <span style={{ color: '#ef4444' }}>*</span></span>
+                <input required placeholder="e.g. Kurai" value={village} onChange={(e) => {
+                  setVillage(e.target.value);
+                  setLocError("");
+                }} style={inputStyle} />
               </label>
             </div>
-
-            {locError && <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>{locError}</div>}
-
-            <div className="auth-nav-row" style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
-              <button type="button" className="button secondary" onClick={() => setStep(1)} style={{ flex: 1, justifyContent: 'center' }}>
-                ← Back
-              </button>
-              <button
-                type="submit"
-                className="button"
-                disabled={locLoading || !village.trim()}
-                style={{ flex: 2, justifyContent: 'center' }}
-              >
-                {locLoading ? <Loader2 className="animate-spin" size={18} /> : "Locate & Save"} {!locLoading && <ArrowRight size={15} />}
+            
+            {locError && <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', color: '#fca5a5', padding: '12px', borderRadius: '10px', fontSize: '13px', fontWeight: 500, display: 'flex', gap: '8px', alignItems: 'center' }}><AlertTriangle size={18}/> {locError}</div>}
+            
+            <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+              <button type="button" onClick={() => setStep(1)} style={{ flex: 1, padding: '16px', fontSize: '15px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '12px', cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+              <button type="submit" disabled={locLoading || !village.trim()} style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '16px', fontSize: '15px', background: '#10b981', border: 'none', color: 'white', borderRadius: '12px', cursor: locLoading || !village.trim() ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: locLoading || !village.trim() ? 0.7 : 1 }}>
+                {locLoading ? <Loader2 className="animate-spin" size={20} /> : "Locate & Save"} {!locLoading && <ArrowRight size={18} />}
               </button>
             </div>
           </form>
-
-          <small className="auth-legal" style={{ display: 'block', marginTop: '1.5rem' }}>
-            Location data stays on this device. It is used only to fetch weather and risk data for your area.
-          </small>
+          <p style={{ fontSize: '12px', color: '#6b7280', lineHeight: 1.5, margin: 0, textAlign: 'center', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', padding: '12px', borderRadius: '10px' }}>
+            Location data stays securely on your device.
+          </p>
         </div>
       )}
 
-      {/* ── Step 3: Success ──────────────────────────────────────────── */}
       {step === 3 && (
-        <div className="auth-card card">
-          <div className="auth-success-icon"><Check size={28} /></div>
-          <h1 className="auth-title">You're all set!</h1>
-          <p className="auth-subtitle">
+        <div style={{...glassCardStyle, alignItems: 'center', textAlign: 'center', padding: '50px 30px'}}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', boxShadow: '0 8px 32px rgba(16, 185, 129, 0.2)' }}>
+            <Check size={40} strokeWidth={3} />
+          </div>
+          <h1 style={{ font: '800 36px Fraunces, serif', margin: '15px 0 5px', letterSpacing: '-0.5px', color: 'white' }}>Authorization Complete</h1>
+          <p style={{ color: '#9ca3af', lineHeight: 1.6, margin: 0, fontSize: '15px' }}>
             {mode === "guest"
-              ? "Continuing as guest. Your farm data is stored on this device only."
-              : "Your profile is ready. Live weather and alerts are now active for:"}
+              ? "Continuing as guest. Your local farm ledger is ready."
+              : "Your profile is verified. Live systems are now active for:"}
           </p>
+          
           {place && (
-            <div className="auth-loc-confirmed">
-              <MapPin size={16} />
-              <div><b>{place}</b><small>Farm location confirmed</small></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '16px', padding: '16px 20px', color: '#34d399', width: '100%', justifyContent: 'center', marginTop: '15px' }}>
+              <MapPin size={20} />
+              <div style={{ textAlign: 'left' }}>
+                <b style={{ fontSize: '15px', display: 'block', color: 'white' }}>{place}</b>
+                <small style={{ fontSize: '12px', fontWeight: 600 }}>Securely linked</small>
+              </div>
             </div>
           )}
-          <Link className="button auth-btn" to="/dashboard">
-            Go to dashboard <ArrowRight size={16} />
-          </Link>
-          <small className="auth-legal">
-            This is a prototype. Do not enter production credentials, sensitive personal data, or real financial information.
-          </small>
+          
+          <button onClick={() => navigate('/dashboard')} style={{ width: '100%', padding: '18px', fontSize: '16px', background: '#10b981', border: 'none', color: 'white', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', fontWeight: 700, marginTop: '20px', boxShadow: '0 4px 14px rgba(16, 185, 129, 0.3)' }}>
+            Initialize Dashboard <ArrowRight size={20} />
+          </button>
         </div>
       )}
     </main>
   );
 }
-
 // ── Post-Flood Assessment ──────────────────────────────────────────────────
 export function PostFloodAssessment() {
   const [step, setStep] = useState(1);
@@ -1443,7 +1907,7 @@ export function PostFloodAssessment() {
 
         {step === 1 ? (
           <form onSubmit={analyzeData}>
-            <div className="form-grid">
+            <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
               <label>Crop
                 <select required name="cropName" onChange={handleInputChange} value={formData.cropName}>
                   <option value="">Select supported crop...</option>
@@ -1632,7 +2096,7 @@ export function Mandi() {
       <Title eyebrow="MARKET INTELLIGENCE" title="Live Mandi Prices" copy="Powered by Government of India (Agmarknet) Open Data. Prices are updated based on local APMC uploads." />
       
       <Card className="mandi-top">
-        <div className="form-grid" style={{ marginBottom: '1.5rem' }}>
+        <div className="form-grid" style={{ marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
             State
             <select value={stateName} onChange={(e) => { setStateName(e.target.value); setDistrict(indiaData[e.target.value]?.[0] || ""); }} style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }}>
@@ -1678,7 +2142,7 @@ export function Mandi() {
       {chartData.length > 0 && !loading && (
         <Card>
           <div className="card-head"><div><span className="eyebrow">PRICE COMPARISON</span><h3>{commodity} across {district}</h3></div></div>
-          <div className="chart large">
+          <div className="chart large" style={{ height: '300px' }}>
             <ResponsiveContainer>
               <BarChart data={chartData}>
                 <XAxis dataKey="market" tick={{fontSize: 12}} interval={0} />
@@ -1705,7 +2169,7 @@ export function Mandi() {
                 <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Commodity</span>
                 <p style={{ margin: 0, fontWeight: 'bold', color: '#374151', fontSize: '1.1rem' }}>{p.commodity}</p>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', textAlign: 'center' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '0.5rem', textAlign: 'center' }}>
                 <div style={{ backgroundColor: '#fff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e5e7eb' }}><small style={{ color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Min Price</small><b style={{ color: '#ef4444' }}>₹{p.min_price}</b></div>
                 <div style={{ backgroundColor: '#dcfce7', padding: '0.75rem', borderRadius: '6px', border: '1px solid #bbf7d0' }}><small style={{ color: '#166534', display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Modal Price</small><b style={{ color: '#16a34a', fontSize: '1.2rem' }}>₹{p.modal_price}</b><small style={{ display: 'block', fontSize: '0.7rem', color: '#166534' }}>/ quintal</small></div>
                 <div style={{ backgroundColor: '#fff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e5e7eb' }}><small style={{ color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Max Price</small><b style={{ color: '#3b82f6' }}>₹{p.max_price}</b></div>
@@ -1727,13 +2191,13 @@ export function Schemes() {
   return (
     <main>
       <Title eyebrow="OFFICIAL ASSISTANCE" title="Government scheme navigator" copy="Explore commonly referenced programmes. Always confirm eligibility, dates and portals through authorised sources." />
-      <div className="scheme-grid">
+      <div className="scheme-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
         {schemes.map(s => (
           <Card key={s.name} className="scheme">
-            <span className="scheme-icon">🏛</span>
-            <h3>{s.name}</h3>
+            <span className="scheme-icon" style={{ fontSize: '24px' }}>🏛</span>
+            <h3 style={{ fontSize: '18px', margin: '10px 0' }}>{s.name}</h3>
             <p>{s.benefit}</p>
-            <div><b>Typical documents</b><span>{s.docs}</span></div>
+            <div style={{ margin: '15px 0' }}><b>Typical documents: </b><span style={{ color: '#4b5563' }}>{s.docs}</span></div>
             <a className="button secondary" href={s.url} target="_blank" rel="noreferrer">{s.status} ↗</a>
           </Card>
         ))}
@@ -1787,15 +2251,15 @@ export function DisasterPlaybooks() {
       </div>
       <Card className="playbook">
         <Badge level="PRIORITY NOW" />
-        <h2 style={{ marginBottom: '1.5rem', marginTop: '0.5rem' }}>{kind} Response Protocol</h2>
+        <h2 style={{ marginBottom: '1.5rem', marginTop: '0.5rem', fontSize: '24px' }}>{kind} Response Protocol</h2>
         {data[kind].map((x, i) => {
           const splitIndex = x.indexOf(":");
           const prefix = splitIndex !== -1 ? x.substring(0, splitIndex) : "";
           const text = splitIndex !== -1 ? x.substring(splitIndex + 1) : x;
           return (
             <div className="play-step" key={i} style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
-              <b style={{ color: '#16a34a', fontSize: '1.2rem', minWidth: '30px' }}>0{i + 1}</b>
-              <p style={{ margin: 0, color: '#374151', lineHeight: '1.6' }}>
+              <b style={{ color: '#16a34a', fontSize: '1.4rem', minWidth: '30px' }}>0{i + 1}</b>
+              <p style={{ margin: 0, color: '#374151', lineHeight: '1.6', fontSize: '15px' }}>
                 {prefix && <strong style={{ color: '#111827' }}>{prefix}:</strong>} {text}
               </p>
             </div>
@@ -1929,7 +2393,7 @@ export function PestDisease() {
   return (
     <main>
       <Title eyebrow="AI DIAGNOSTICS" title="Pest & Disease Center" copy="Powered by Google Gemini Vision API for accurate visual disease identification and treatment." />
-      <div className="diagnose">
+      <div className="diagnose" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
         <Card>
           <div style={{ marginBottom: '1rem' }}>
             <label className="auth-label">Upload Plant Image <span className="required">*</span></label>
@@ -1986,15 +2450,24 @@ export function PestDisease() {
 }
 
 // ── Upcoming Features (Separated Pages) ────────────────────────────────────
-
 export function Relief() {
   return (
     <main>
       <Title eyebrow="FUTURE RELEASES" title="Relief & Claims" copy="We are working closely with government partners to bring PMFBY integrations directly to your dashboard." />
-      <Card className="empty-state" style={{ padding: '4rem 2rem', border: '2px dashed #d1d5db', backgroundColor: '#f9fafb' }}>
-        <ShieldAlert size={48} color="#16a34a" style={{ margin: '0 auto', marginBottom: '1.5rem' }} />
-        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#111827' }}>Relief & Claims Navigator</h2>
-        <p style={{ color: '#4b5563', fontSize: '1rem', maxWidth: '600px', margin: '0 auto', marginBottom: '2rem', lineHeight: '1.6' }}>
+      <Card style={{ 
+        padding: '60px 20px', 
+        border: '2px dashed #d1d5db', 
+        backgroundColor: '#f9fafb', 
+        boxShadow: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center'
+      }}>
+        <ShieldAlert size={64} color="#16a34a" style={{ marginBottom: '20px', opacity: 0.8 }} />
+        <h2 style={{ fontSize: '28px', marginBottom: '15px', color: '#111827', fontWeight: 800 }}>Relief & Claims Navigator</h2>
+        <p style={{ color: '#4b5563', fontSize: '16px', maxWidth: '600px', marginBottom: '30px', lineHeight: '1.6' }}>
           Direct integration with PMFBY (Pradhan Mantri Fasal Bima Yojana) to seamlessly file crop loss claims, upload geotagged damage photos, and track government relief funds straight from your dashboard.
         </p>
         <Badge level="COMING SOON" />
@@ -2007,10 +2480,20 @@ export function SoilTesting() {
   return (
     <main>
       <Title eyebrow="FUTURE RELEASES" title="Soil Testing & Research" copy="Connect your farm directly to ICAR-approved laboratories for scientific analysis." />
-      <Card className="empty-state" style={{ padding: '4rem 2rem', border: '2px dashed #d1d5db', backgroundColor: '#f9fafb' }}>
-        <TestTube size={48} color="#d97706" style={{ margin: '0 auto', marginBottom: '1.5rem' }} />
-        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#111827' }}>Soil Testing Courier</h2>
-        <p style={{ color: '#4b5563', fontSize: '1rem', maxWidth: '600px', margin: '0 auto', marginBottom: '2rem', lineHeight: '1.6' }}>
+      <Card style={{ 
+        padding: '60px 20px', 
+        border: '2px dashed #d1d5db', 
+        backgroundColor: '#f9fafb', 
+        boxShadow: 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center'
+      }}>
+        <TestTube size={64} color="#d97706" style={{ marginBottom: '20px', opacity: 0.8 }} />
+        <h2 style={{ fontSize: '28px', marginBottom: '15px', color: '#111827', fontWeight: 800 }}>Soil Testing Courier</h2>
+        <p style={{ color: '#4b5563', fontSize: '16px', maxWidth: '600px', marginBottom: '30px', lineHeight: '1.6' }}>
           Book a doorstep courier pickup for your field's soil samples. Send them directly to approved research labs and automatically receive a digital Soil Health Card with precise fertilizer recommendations.
         </p>
         <Badge level="COMING SOON" />

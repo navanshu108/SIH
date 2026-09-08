@@ -2,7 +2,6 @@ import { Bell, Bot, ChevronLeft, CloudSun, Droplets, FileHeart, LayoutDashboard,
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 
-// The /location route has been removed from this array
 const nav=[['/dashboard','Dashboard',LayoutDashboard],['/my-farm','My Farm',Sprout],['/crop-advisor','Crop Advisor',Wheat],['/crops','Crop Library',Leaf],['/weather','Weather',CloudSun],['/risk-radar','Risk Radar',ShieldAlert],['/mandi','Mandi Bhav',Store],['/schemes','Schemes',FileHeart]] as const;
 
 export function Layout({children}:{children:React.ReactNode}) { 
@@ -24,13 +23,9 @@ export function Layout({children}:{children:React.ReactNode}) {
           
           <p className="nav-label">RESILIENCE</p>
           <NavLink to="/disaster-playbooks" onClick={()=>setOpen(false)}><ShieldAlert size={18}/>Playbooks</NavLink>
-          
           <NavLink to="/post-flood-assessment" onClick={()=>setOpen(false)}><Droplets size={18}/>Flood Assessment</NavLink>
-          
           <NavLink to="/relief" onClick={()=>setOpen(false)}><FileHeart size={18}/>Relief & Claims</NavLink>
           <NavLink to="/pest-disease" onClick={()=>setOpen(false)}><Leaf size={18}/>Pest & Disease</NavLink>
-          
-          {/* Added Soil Testing Link */}
           <NavLink to="/soil-testing" onClick={()=>setOpen(false)}><TestTube size={18}/>Soil Testing</NavLink>
         </nav>
         <div className="offline">
@@ -48,16 +43,15 @@ export function Layout({children}:{children:React.ReactNode}) {
             <NavLink className="avatar" to="/login" aria-label={guest?'Sign in or continue as guest':'Account'}>{guest?'G':(localStorage.getItem('kisansetu_name')||'RS').slice(0,2).toUpperCase()}</NavLink>
           </div>
         </header>
+        
+        {/* Main Content Rendered Here */}
         {children}
       </section>
       
       {search&&<SearchDialog close={()=>setSearch(false)}/>}
       
+      {/* Ask AgriRecover Floating Action Button (Green, Bottom Right) */}
       <NavLink className="mitra-fab" to="/assistant"><Bot size={20}/> <span>Ask AgriRecover</span></NavLink>
-      
-      <nav className="bottom-nav">
-        {nav.slice(0,5).map(([to,label,Icon])=><NavLink key={to} to={to}><Icon size={19}/><small>{label.split(' ')[0]}</small></NavLink>)}
-      </nav>
     </div>
   );
 }
