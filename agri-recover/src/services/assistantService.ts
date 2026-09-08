@@ -1,8 +1,32 @@
-import { aiAnswer } from './mockServices';
-import type { LiveContext } from './liveContextService';
-export async function askAssistant(question:string, context?:LiveContext) {
-  const endpoint=import.meta.env.VITE_ASSISTANT_API_URL as string | undefined;
-  if(endpoint){const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({question,context})});if(!response.ok) throw new Error('Assistant service unavailable');const data=await response.json();return String(data.answer||data.message||'No answer returned.');}
-  const locality=context?.source==='live'?` Live conditions for ${context.location}: ${context.temperature}°C, ${context.humidity}% humidity, ${context.rainProbability}% rain chance.`:'';
-  return aiAnswer(question)+locality+' Configure VITE_ASSISTANT_API_URL with a secure server endpoint to enable live web-grounded AI answers.';
+export async function askAssistant(prompt: string, context?: any): Promise<string> {
+  const apiKey = localStorage.getItem("gemini_apikey");
+  if (!apiKey) {
+    return "Please enter your Gemini API key in the Pest & Disease page to enable live AI responses.";
+  }
+
+  const systemContext = context 
+    ? `You are Kisan Mitra, an agricultural AI. The farmer is located in ${context.location}, temperature is ${context.temperature}°C with ${context.rainProbability}% chance of rain.` 
+    : "You are Kisan Mitra, a helpful AI agricultural assistant.";
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey.trim()}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: `${systemContext}\n\nFarmer question: ${prompt}` }]
+            }
+          ]
+        })
+      }
+    );
+
+    const data = await res.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "No response received.";
+  } catch (err) {
+    return "Failed to connect to Kisan Mitra. Please verify your connection or API key.";
+  }
 }

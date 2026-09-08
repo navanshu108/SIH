@@ -1,15 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
   AlertTriangle, ArrowRight, Bot, Check, ChevronRight, CloudRain, Droplets,
-  FileUp, Leaf, MapPin, Mic, Navigation, Plus, Send, ShieldAlert, Sparkles,
-  Sprout, ThermometerSun, Upload, Volume2, Wind, X, Loader2, LogOut, Store
+  FileUp, Leaf, MapPin, Mic, Plus, Send, ShieldAlert, Sparkles,
+  Sprout, ThermometerSun, Upload, Volume2, Wind, X, Loader2, LogOut, Store,
+  Trash2, Calendar, TestTube
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { alerts, mandi, schemes, diagnosePlant } from "../services/mockServices";
+import { alerts, mandi, schemes } from "../services/mockServices";
 import { askAssistant } from "../services/assistantService";
-import { getLiveContext, getLiveContextForLocation, getSavedLocationContext, reverseGeocode, type LiveContext } from "../services/liveContextService";
-import { LocationMap } from "../components/LocationMap";
+import { getLiveContext, getLiveContextForLocation, getSavedLocationContext, type LiveContext } from "../services/liveContextService";
 
 // ── Complete India State & District Database ───────────────────────────
 const indiaData: Record<string, string[]> = {
@@ -742,85 +742,255 @@ export function LocationSelect() {
   );
 }
 
-// ── My Farm ────────────────────────────────────────────────────────────────
+// ── My Farm (Digital Field Ledger) ─────────────────────────────────────────
 export function MyFarm() {
-  const [fields, setFields] = useState([
-    { name: "North field", area: "2.0 acres", crop: "Soyabean", day: 42, health: "Good", tasks: ["Clear drainage channels", "Monitor for yellow mosaic virus"] },
-    { name: "Canal plot", area: "1.5 acres", crop: "Maize", day: 31, health: "Needs attention", tasks: ["Apply nitrogen top-dressing", "Check for waterlogging"] },
-  ]);
+  const [fields, setFields] = useState<any[]>(() => {
+    const saved = localStorage.getItem("kisansetu_fields");
+    if (saved) {
+      try { 
+        const parsed = JSON.parse(saved);
+        // Force migration: If old string-based tasks exist, wipe them out to prevent crash
+        if (parsed.length > 0 && typeof parsed[0].tasks?.[0] === 'string') {
+          throw new Error("Old data format detected. Wiping local storage to prevent crash.");
+        }
+        return parsed;
+      } catch (e) {
+        console.warn("Resetting fields due to schema change:", e);
+      }
+    }
+    // Default initial data for showcase
+    return [
+      { id: "1", name: "North field", area: "2.0", unit: "acres", crop: "Soyabean", sowingDate: new Date(Date.now() - 42 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], tasks: [{ id: "t1", text: "Clear drainage channels", done: true }, { id: "t2", text: "Monitor for yellow mosaic virus", done: false }] },
+      { id: "2", name: "Canal plot", area: "1.5", unit: "acres", crop: "Maize", sowingDate: new Date(Date.now() - 31 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], tasks: [{ id: "t3", text: "Apply nitrogen top-dressing", done: false }, { id: "t4", text: "Check for waterlogging", done: false }] },
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("kisansetu_fields", JSON.stringify(fields));
+  }, [fields]);
+
   const [adding, setAdding] = useState(false);
   const [activeField, setActiveField] = useState<any>(null);
+  
+  // Add field form state
+  const [newName, setNewName] = useState("");
+  const [newArea, setNewArea] = useState("");
+  const [newCrop, setNewCrop] = useState("Soyabean");
+  const [newSowingDate, setNewSowingDate] = useState("");
+
+  // Add task state
+  const [newTaskText, setNewTaskText] = useState("");
+
+  const getDAS = (dateString: string) => {
+    if (!dateString || isNaN(new Date(dateString).getTime())) return 0;
+    const diff = new Date().getTime() - new Date(dateString).getTime();
+    return Math.max(0, Math.floor(diff / (1000 * 3600 * 24)));
+  };
+
+  const formatDate = (ds: string) => {
+    if (!ds || isNaN(new Date(ds).getTime())) return "N/A";
+    return new Date(ds).toLocaleDateString('en-GB');
+  };
+
+  const handleAddField = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newName.trim() || !newArea.trim() || !newSowingDate) return;
+    const newField = {
+      id: Date.now().toString(),
+      name: newName,
+      area: newArea,
+      unit: "acres",
+      crop: newCrop,
+      sowingDate: newSowingDate,
+      tasks: [{ id: Date.now().toString() + "_t", text: "Initial field prep and soil testing", done: false }]
+    };
+    setFields([...fields, newField]);
+    setAdding(false);
+    setNewName(""); setNewArea(""); setNewSowingDate("");
+  };
+
+  const handleDeleteField = (id: string) => {
+    if (confirm("Are you sure you want to delete this field? This action cannot be undone.")) {
+      setFields(fields.filter(f => f.id !== id));
+      setActiveField(null);
+    }
+  };
+
+  const toggleTask = (fieldId: string, taskId: string) => {
+    setFields(fields.map(f => {
+      if (f.id === fieldId) {
+        return { ...f, tasks: f.tasks.map((t: any) => t.id === taskId ? { ...t, done: !t.done } : t) };
+      }
+      return f;
+    }));
+    if (activeField && activeField.id === fieldId) {
+      setActiveField((prev: any) => ({
+        ...prev,
+        tasks: prev.tasks.map((t: any) => t.id === taskId ? { ...t, done: !t.done } : t)
+      }));
+    }
+  };
+
+  const deleteTask = (fieldId: string, taskId: string) => {
+    setFields(fields.map(f => {
+      if (f.id === fieldId) {
+        return { ...f, tasks: f.tasks.filter((t: any) => t.id !== taskId) };
+      }
+      return f;
+    }));
+    if (activeField && activeField.id === fieldId) {
+      setActiveField((prev: any) => ({
+        ...prev,
+        tasks: prev.tasks.filter((t: any) => t.id !== taskId)
+      }));
+    }
+  };
+
+  const addTask = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTaskText.trim() || !activeField) return;
+    const newTask = { id: Date.now().toString(), text: newTaskText, done: false };
+    
+    setFields(fields.map(f => {
+      if (f.id === activeField.id) {
+        return { ...f, tasks: [...f.tasks, newTask] };
+      }
+      return f;
+    }));
+    setActiveField((prev: any) => ({
+      ...prev,
+      tasks: [...prev.tasks, newTask]
+    }));
+    setNewTaskText("");
+  };
 
   return (
     <main>
-      <Title eyebrow="YOUR FARM" title="Farm overview" copy="A private local dashboard for fields, crop stages, tasks and records." />
+      <Title eyebrow="DIGITAL FARM DIARY" title="Field Manager" copy="A private, offline-first dashboard to track your crop lifecycles, fields, and daily tasks." />
       
       <div className="card-head fields-head">
-        <div><span className="eyebrow">FIELD REGISTER</span><h2>Your fields</h2></div>
+        <div><span className="eyebrow">FIELD REGISTER</span><h2>Your active plots</h2></div>
         <button className="button" onClick={() => setAdding(true)}><Plus size={16} /> Add field</button>
       </div>
       
       <div className="field-list">
-        {fields.map(f => (
-          <Card className="field" key={f.name} onClick={() => setActiveField(f)}>
+        {fields.length === 0 && (
+          <Card className="empty-state">
+            <Sprout size={34} />
+            <h2>No fields registered</h2>
+            <p>Add your farm plots to track crop stages, activities, and daily tasks.</p>
+          </Card>
+        )}
+        {fields.map(f => {
+          const das = getDAS(f.sowingDate);
+          // Assuming an average full lifecycle of 120 days for the progress bar
+          const progress = Math.min(100, Math.max(0, (das / 120) * 100));
+          return (
+          <Card className="field" key={f.id} onClick={() => setActiveField(f)}>
             <div className="field-icon"><Sprout /></div>
-            <div><h3>{f.name}</h3><p>{f.area} · {f.crop}</p></div>
+            <div><h3>{f.name}</h3><p>{f.area} {f.unit} · {f.crop}</p></div>
             <div className="field-stage">
-              <b>Day {f.day} <small>/ 105</small></b>
-              <div className="progress"><i style={{ width: (f.day / 105) * 100 + "%" }} /></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                <b>Day {das} <small>since sowing</small></b>
+                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}><Calendar size={12} style={{ display: 'inline', marginBottom: '-2px' }}/> {formatDate(f.sowingDate)}</span>
+              </div>
+              <div className="progress" style={{ backgroundColor: '#e5e7eb', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                <i style={{ display: 'block', height: '100%', backgroundColor: '#16a34a', width: `${progress}%` }} />
+              </div>
             </div>
             <button className="button secondary" onClick={(e) => { e.stopPropagation(); setActiveField(f); }}>View field</button>
           </Card>
-        ))}
+        )})}
       </div>
 
       {/* Field Detail Modal - Z-INDEX FIXED */}
       {activeField && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setActiveField(null)}>
-          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', backgroundColor: '#fff', borderRadius: '12px', padding: '24px', position: 'relative', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+          <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '500px', backgroundColor: '#fff', borderRadius: '12px', padding: '24px', position: 'relative', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', maxHeight: '90vh', overflowY: 'auto' }}>
             <button style={{ position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={() => setActiveField(null)}>
               <X size={24} color="#6b7280" />
             </button>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem', color: '#111827' }}>{activeField.name}</h2>
-            <Badge level={activeField.health === "Good" ? "HEALTHY" : "ATTENTION"} />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+               <Badge level="HEALTHY" />
+               <Badge level={`${getDAS(activeField.sowingDate)} Days Old`} />
+            </div>
             
             <div style={{ marginTop: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div style={{ padding: '1rem', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
-                <small style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '0.75rem', letterSpacing: '0.05em' }}>CROP</small>
-                <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#1f2937' }}>{activeField.crop}</p>
+                <small style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '0.75rem', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><Sprout size={14}/> CROP</small>
+                <p style={{ margin: 0, marginTop: '0.25rem', fontSize: '1.1rem', fontWeight: 600, color: '#1f2937' }}>{activeField.crop}</p>
               </div>
               <div style={{ padding: '1rem', backgroundColor: '#f3f4f6', borderRadius: '8px' }}>
-                <small style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '0.75rem', letterSpacing: '0.05em' }}>AREA</small>
-                <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: '#1f2937' }}>{activeField.area}</p>
+                <small style={{ color: '#6b7280', fontWeight: 'bold', fontSize: '0.75rem', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><MapPin size={14}/> AREA</small>
+                <p style={{ margin: 0, marginTop: '0.25rem', fontSize: '1.1rem', fontWeight: 600, color: '#1f2937' }}>{activeField.area} {activeField.unit}</p>
               </div>
             </div>
 
             <div style={{ marginTop: '1.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1.5rem' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '0.75rem', color: '#111827' }}>Pending Tasks</h3>
-              <ul style={{ paddingLeft: '1.2rem', color: '#4b5563', margin: 0 }}>
-                {activeField.tasks.map((t: string) => <li key={t} style={{ marginBottom: '0.5rem', lineHeight: 1.4 }}>{t}</li>)}
-              </ul>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1rem', color: '#111827' }}>Farm Ledger & Tasks</h3>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                {(!activeField.tasks || activeField.tasks.length === 0) && <p style={{ color: '#6b7280', fontSize: '0.9rem', fontStyle: 'italic' }}>No tasks recorded yet.</p>}
+                {activeField.tasks && activeField.tasks.map((t: any) => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem', backgroundColor: t.done ? '#f9fafb' : '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', flex: 1, textDecoration: t.done ? 'line-through' : 'none', color: t.done ? '#9ca3af' : '#374151' }}>
+                      <input type="checkbox" checked={t.done} onChange={() => toggleTask(activeField.id, t.id)} style={{ width: '18px', height: '18px', accentColor: '#16a34a' }} />
+                      <span style={{ fontSize: '0.95rem' }}>{t.text}</span>
+                    </label>
+                    <button onClick={() => deleteTask(activeField.id, t.id)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }} aria-label="Delete Task">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <form onSubmit={addTask} style={{ display: 'flex', gap: '0.5rem' }}>
+                <input required value={newTaskText} onChange={e => setNewTaskText(e.target.value)} placeholder="e.g. Added 50kg Urea" style={{ flex: 1, padding: '0.75rem', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.9rem' }} />
+                <button type="submit" className="button" style={{ padding: '0.75rem 1rem' }}><Plus size={16}/> Add</button>
+              </form>
             </div>
 
-            <button className="button" style={{ width: '100%', marginTop: '2rem', justifyContent: 'center', padding: '12px' }} onClick={() => setActiveField(null)}>Close Overview</button>
+            <div style={{ marginTop: '2rem', borderTop: '1px solid #fee2e2', paddingTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <button className="button secondary" style={{ width: '100%', justifyContent: 'center', borderColor: '#fca5a5', color: '#dc2626', backgroundColor: '#fef2f2' }} onClick={() => handleDeleteField(activeField.id)}>
+                <Trash2 size={16} /> Delete Field
+              </button>
+              <button className="button secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => setActiveField(null)}>Close</button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Add Field Modal - Z-INDEX FIXED */}
+      {/* Add Field Modal */}
       {adding && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }} onClick={() => setAdding(false)}>
           <div className="card" onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: '400px', backgroundColor: '#fff', borderRadius: '12px', padding: '24px', position: 'relative' }}>
             <button style={{ position: 'absolute', top: '16px', right: '16px', background: 'transparent', border: 'none', cursor: 'pointer' }} onClick={() => setAdding(false)}>
               <X size={24} color="#6b7280" />
             </button>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#111827' }}>Add a field</h2>
-            <input placeholder="Field name" autoFocus style={{ width: '100%', padding: '0.75rem', marginBottom: '1rem', borderRadius: '6px', border: '1px solid #d1d5db' }}/>
-            <input placeholder="Area (e.g. 1.5 acres)" style={{ width: '100%', padding: '0.75rem', marginBottom: '1rem', borderRadius: '6px', border: '1px solid #d1d5db' }}/>
-            <select style={{ width: '100%', padding: '0.75rem', marginBottom: '1.5rem', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: 'white' }}>
-              {crops.map(c => <option key={c.id}>{c.name}</option>)}
-            </select>
-            <button className="button" style={{ width: '100%', justifyContent: 'center', padding: '12px' }} onClick={() => { setFields([...fields, { name: "New field", area: "1 acre", crop: "Soyabean", day: 1, health: "Good", tasks: ["Initial field prep"] }]); setAdding(false); }}>Save field</button>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#111827' }}>Register new field</h2>
+            <form onSubmit={handleAddField}>
+              <label style={{ display: 'block', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 600 }}>Field Name <span style={{color:'red'}}>*</span>
+                <input required value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. North River Plot" autoFocus style={{ width: '100%', padding: '0.75rem', marginTop: '0.25rem', borderRadius: '6px', border: '1px solid #d1d5db' }}/>
+              </label>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Area (Acres) <span style={{color:'red'}}>*</span>
+                  <input required type="number" step="0.1" min="0.1" value={newArea} onChange={e => setNewArea(e.target.value)} placeholder="e.g. 1.5" style={{ width: '100%', padding: '0.75rem', marginTop: '0.25rem', borderRadius: '6px', border: '1px solid #d1d5db' }}/>
+                </label>
+                <label style={{ fontSize: '0.85rem', fontWeight: 600 }}>Crop <span style={{color:'red'}}>*</span>
+                  <select required value={newCrop} onChange={e => setNewCrop(e.target.value)} style={{ width: '100%', padding: '0.75rem', marginTop: '0.25rem', borderRadius: '6px', border: '1px solid #d1d5db', backgroundColor: 'white' }}>
+                    {crops.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <label style={{ display: 'block', marginBottom: '1.5rem', fontSize: '0.85rem', fontWeight: 600 }}>Sowing Date <span style={{color:'red'}}>*</span>
+                <input required type="date" value={newSowingDate} onChange={e => setNewSowingDate(e.target.value)} max={new Date().toISOString().split('T')[0]} style={{ width: '100%', padding: '0.75rem', marginTop: '0.25rem', borderRadius: '6px', border: '1px solid #d1d5db' }}/>
+              </label>
+
+              <button type="submit" className="button" style={{ width: '100%', justifyContent: 'center', padding: '12px' }}>Save field</button>
+            </form>
           </div>
         </div>
       )}
@@ -849,7 +1019,7 @@ export function Login() {
   const [place, setPlace] = useState("");
 
   // Check Active Session
-  const [isLoggedIn, setIsLoggedIn] = useState(!!localStorage.getItem("kisansetu_name"));
+  const isLoggedIn = !!localStorage.getItem("kisansetu_name");
   const currentName = localStorage.getItem("kisansetu_name");
   const currentMode = localStorage.getItem("kisansetu_mode");
   const navigate = useNavigate();
@@ -1026,7 +1196,7 @@ export function Login() {
                   value={name}
                   onChange={e => { setName(e.target.value); setErrors1({}); }}
                   placeholder={mode === "guest" ? "e.g. Guest Farmer" : "e.g. Ramesh Patel"}
-                  required={mode !== "signin"}
+                  required
                 />
                 {errors1.name && <span className="field-error">{errors1.name}</span>}
               </label>
@@ -1399,7 +1569,6 @@ export function Mandi() {
       const apiKey = "579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b";
       const targetUrl = `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=${apiKey}&format=json&limit=100&filters[state]=${stateName}&filters[district]=${district}`;
       
-      // Using AllOrigins CORS proxy to bypass browser restrictions on the frontend
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
       
       const res = await fetch(proxyUrl);
@@ -1574,37 +1743,82 @@ export function Schemes() {
 }
 
 export function DisasterPlaybooks() {
-  const [kind, setKind] = useState("Flood");
+  const [kind, setKind] = useState("Flood & Heavy Rain");
   const data: Record<string, string[]> = {
-    Flood: ["Clear drains and move equipment to higher ground.", "Do not enter fast-moving water or apply fertiliser before assessment.", "After water recedes, document loss and inspect crop roots."],
-    Drought: ["Prioritise irrigation for critical growth stages.", "Do not apply fertiliser to severely moisture-stressed crops.", "Use mulch and follow local water scheduling guidance."],
-    Heatwave: ["Irrigate early morning when suitable.", "Do not spray in peak heat.", "Provide shade or water access for livestock."],
-    Hailstorm: ["Move available harvested produce under cover.", "Do not rush to prune damaged crops immediately.", "Photograph losses and contact local authorities."],
+    "Flood & Heavy Rain": [
+      "PRE-ALERT: Dig trench drains along field borders to ensure rapid water exit. Harvest any mature crops immediately.",
+      "DURING: Disconnect all farm electrical equipment. Do not apply fertilizers or pesticides as they will wash away and pollute local water.",
+      "POST-FLOOD (48hrs): Drain stagnant water immediately to prevent root rot. Once leaves dry, apply a 2% foliar Urea spray to revive vegetative growth.",
+      "DISEASE CONTROL: Submerged roots are prone to fungal attack. Apply Copper Oxychloride or Mancozeb as a preventive drench.",
+      "INSURANCE: Photograph the flooded field with timestamps and GPS coordinates. Notify the PMFBY helpline or local agriculture office within 72 hours."
+    ],
+    "Drought & Dry Spells": [
+      "SOIL MOISTURE: Apply thick organic mulch (crop residue, leaves) around plant bases to drastically reduce water evaporation from the soil.",
+      "IRRIGATION TACTICS: Shift to night-time or early-morning irrigation. Restrict water to life-saving irrigation at critical stages (flowering/grain-filling).",
+      "NUTRIENTS: Suspend top-dressing of solid nitrogen fertilizers. Instead, use foliar sprays of Potassium Nitrate (KNO3) (1-2%) to induce drought tolerance.",
+      "WEEDING: Aggressively remove weeds manually; they steal limited water and nutrients from your primary crop.",
+      "SOIL PREP: Stop deep plowing which exposes subsoil moisture to the hot sun. Practice zero-tillage or minimum tillage where possible."
+    ],
+    "Heatwave (Loo)": [
+      "MICRO-CLIMATE: Apply light, frequent irrigation during late evening to cool the soil canopy. Ensure fields do not become waterlogged.",
+      "CROP PROTECTION: Spray a 2% Kaolin (white clay) solution on leaves. This acts as a sunscreen, reflecting intense solar radiation and reducing transpiration.",
+      "CHEMICAL BAN: Strictly halt all pesticide, fungicide, and herbicide spraying between 10 AM and 4 PM to prevent severe leaf scorching (phytotoxicity).",
+      "LIVESTOCK: Ensure animals have 24/7 access to cool drinking water, provide heavily shaded areas, and add electrolytes to their feed."
+    ],
+    "Hailstorm & Rain": [
+      "PRE-ALERT: If severe weather is forecast, use anti-hail nets for high-value horticulture and nursery crops. Harvest ready produce immediately.",
+      "POST-DAMAGE: Do NOT prune damaged branches immediately while wet. Wait for the crop to dry to prevent spreading bacterial infections.",
+      "WOUND CARE: Spray broad-spectrum systemic fungicides (like Carbendazim + Mancozeb) within 24 hours to stop fungal infections from entering hail-damaged plant wounds.",
+      "RECOVERY BOOST: Apply a light dose of quick-acting nitrogen (Urea) foliar spray 3-4 days after the storm to encourage a new flush of leaves.",
+      "CLAIMS: Document all damage with a camera immediately. Do not clear the field until a local official has surveyed the loss for crop insurance."
+    ],
+    "Pest Outbreak": [
+      "EARLY WARNING: Set up pheromone traps and light traps at field borders to detect the arrival of adult moths or pests early.",
+      "BARRIERS: Dig boundary trenches around the field and apply dust formulations (e.g., Malathion 5% DP) in the trenches to stop crawling pests (like Fall Armyworm).",
+      "TREATMENT: Spray Neem Seed Kernel Extract (NSKE 5%) as an organic deterrent. If crossing economic threshold levels (ETL), use recommended chemical insecticides targeting the central leaf whorl.",
+      "COMMUNITY DEFENSE: Coordinate with neighboring farmers for simultaneous, collective spraying. Drum-beating and loud noises can help deter settling locust swarms."
+    ]
   };
   return (
     <main>
-      <Title eyebrow="EMERGENCY GUIDES" title="Disaster playbooks" copy="Simple action lists that remain available offline. Follow local emergency instructions first." />
-      <div className="tabs">
-        {Object.keys(data).map(x => <button className={kind === x ? "selected" : ""} key={x} onClick={() => setKind(x)}>{x}</button>)}
+      <Title eyebrow="EMERGENCY GUIDES" title="Disaster playbooks" copy="Highly actionable, offline-ready response lists designed by agricultural scientists." />
+      <div className="tabs" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
+        {Object.keys(data).map(x => <button className={`button ${kind === x ? "" : "secondary"}`} key={x} onClick={() => setKind(x)}>{x}</button>)}
       </div>
       <Card className="playbook">
         <Badge level="PRIORITY NOW" />
-        <h2>{kind} response guide</h2>
-        {data[kind].map((x, i) => <div className="play-step" key={x}><b>0{i + 1}</b><p>{x}</p></div>)}
-        <div className="materials"><b>Keep ready</b><span>Phone/camera · field record · clean water · local helpline details</span></div>
+        <h2 style={{ marginBottom: '1.5rem', marginTop: '0.5rem' }}>{kind} Response Protocol</h2>
+        {data[kind].map((x, i) => {
+          const splitIndex = x.indexOf(":");
+          const prefix = splitIndex !== -1 ? x.substring(0, splitIndex) : "";
+          const text = splitIndex !== -1 ? x.substring(splitIndex + 1) : x;
+          return (
+            <div className="play-step" key={i} style={{ display: 'flex', gap: '1rem', marginBottom: '1.25rem' }}>
+              <b style={{ color: '#16a34a', fontSize: '1.2rem', minWidth: '30px' }}>0{i + 1}</b>
+              <p style={{ margin: 0, color: '#374151', lineHeight: '1.6' }}>
+                {prefix && <strong style={{ color: '#111827' }}>{prefix}:</strong>} {text}
+              </p>
+            </div>
+          );
+        })}
+        <div className="materials" style={{ marginTop: '2rem', padding: '1rem', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+          <b style={{ display: 'block', marginBottom: '0.5rem', color: '#111827' }}>Emergency Kit Checklist</b>
+          <span style={{ color: '#4b5563' }}>Fully charged phone/camera · Field record book · Clean drinking water · Local agriculture helpline numbers saved</span>
+        </div>
       </Card>
     </main>
   );
 }
 
-// ── Pest & Disease (Plant.id Integration) ──────────────────────────────────
+// ── Pest & Disease (Gemini Vision API Integration) ──────────────────────────
 export function PestDisease() {
   const [image, setImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [apiKey, setApiKey] = useState(localStorage.getItem("plantid_apikey") || "");
+  
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -1628,15 +1842,16 @@ export function PestDisease() {
       const reader = new FileReader();
       reader.readAsDataURL(image);
       reader.onloadend = async () => {
-        const base64Image = (reader.result as string).split(',')[1];
+        const base64Data = (reader.result as string).split(',')[1];
+        const mimeType = image.type || "image/jpeg";
 
         if (!apiKey || apiKey.trim() === "") {
-          // Fallback demo data
+          // Fallback demo data if no key is provided in .env
           setTimeout(() => {
             setResult({
-              name: "Yellow Mosaic Virus",
+              name: "Yellow Mosaic Virus (Mock Data)",
               confidence: 92,
-              symptoms: "Yellowing of leaves, stunted growth, and reduced pod formation.",
+              symptoms: "Yellowing of leaves, stunted growth, and reduced pod formation. This is offline mock data because the VITE_GEMINI_API_KEY environment variable is not set.",
               immediate: "Remove and destroy infected plants immediately to prevent spread.",
               organic: "Control whitefly vectors using Neem oil (3ml/L). Use yellow sticky traps.",
               chemical: "Spray Imidacloprid 17.8 SL @ 0.3 ml/L or Thiamethoxam 25 WG @ 0.2 g/L."
@@ -1646,62 +1861,61 @@ export function PestDisease() {
           return;
         }
 
-        // Live API Call to Plant.id Free Tier
+        // Live API Call to Google Gemini Vision
         try {
-          const response = await fetch('https://api.plant.id/v2/health_assessment', {
+          const promptText = `Analyze this plant image. Identify any disease, pest, or if it is healthy. Respond ONLY with a valid JSON object matching this exact structure, with no markdown formatting, no backticks, and no extra text: {"name": "Disease or Condition Name", "confidence": 95, "symptoms": "Brief description of visible symptoms", "immediate": "Immediate action to take", "organic": "Organic or Biological treatment", "chemical": "Chemical treatment if applicable"}`;
+
+          // Using the stable gemini-3.6-flash endpoint
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${apiKey.trim()}`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Api-Key': apiKey.trim(),
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              images: [base64Image],
-              modifiers: ["crops_fast", "similar_images"],
-              disease_details: ["description", "treatment"]
+              contents: [
+                {
+                  parts: [
+                    { text: promptText },
+                    {
+                      inline_data: {
+                        mime_type: mimeType,
+                        data: base64Data
+                      }
+                    }
+                  ]
+                }
+              ]
             }),
           });
 
           if (!response.ok) {
              const errData = await response.json();
-             throw new Error(errData.message || "API request failed");
+             throw new Error(errData.error?.message || "Gemini API request failed");
           }
+
           const data = await response.json();
+          let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
           
-          if (data.health_assessment && data.health_assessment.is_healthy_probability > 0.6) {
-             setResult({
-               name: "Healthy Plant",
-               confidence: Math.round(data.health_assessment.is_healthy_probability * 100),
-               symptoms: "No significant diseases detected in the uploaded image.",
-               immediate: "Continue standard management.",
-               organic: "Maintain good soil health.",
-               chemical: "None required."
-             });
-          } else if (data.health_assessment && data.health_assessment.diseases && data.health_assessment.diseases.length > 0) {
-             const disease = data.health_assessment.diseases[0];
-             const treatment = disease.disease_details?.treatment || {};
-             
-             setResult({
-               name: disease.name,
-               confidence: Math.round(disease.probability * 100),
-               symptoms: disease.disease_details?.description || "Visual symptoms detected matching this disease.",
-               immediate: "Isolate the plant if possible. Remove heavily infected leaves.",
-               organic: treatment.biological?.join(", ") || "Use appropriate organic fungicides/insecticides.",
-               chemical: treatment.chemical?.join(", ") || "Consult local agro-dealer for specific chemical treatments."
-             });
-          } else {
-             setResult({
-               name: "Unknown Condition",
-               confidence: 0,
-               symptoms: "Could not accurately determine the disease.",
-               immediate: "Consult a local agricultural expert.",
-               organic: "N/A",
-               chemical: "N/A"
-             });
+          // Clean up any markdown blocks Gemini might have added
+          rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+
+          try {
+            const parsedResult = JSON.parse(rawText);
+            setResult({
+              name: parsedResult.name || "Unknown Condition",
+              confidence: parsedResult.confidence || 0,
+              symptoms: parsedResult.symptoms || "Could not analyze symptoms clearly.",
+              immediate: parsedResult.immediate || "Consult local agricultural expert.",
+              organic: parsedResult.organic || "N/A",
+              chemical: parsedResult.chemical || "N/A"
+            });
+          } catch (parseError) {
+            console.error("Failed to parse Gemini JSON:", rawText);
+            throw new Error("Could not parse the AI's response. Please try again with a clearer image.");
           }
+
           setLoading(false);
         } catch (err: any) {
           console.error(err);
-          setError("Plant.id API Error: " + err.message + ". Check your API key.");
+          setError("Gemini API Error: " + err.message);
           setLoading(false);
         }
       };
@@ -1714,22 +1928,9 @@ export function PestDisease() {
 
   return (
     <main>
-      <Title eyebrow="AI DIAGNOSTICS" title="Pest & Disease Center" copy="Upload a photo of your sick plant. Powered by Plant.id API for accurate disease identification and treatment." />
+      <Title eyebrow="AI DIAGNOSTICS" title="Pest & Disease Center" copy="Powered by Google Gemini Vision API for accurate visual disease identification and treatment." />
       <div className="diagnose">
         <Card>
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
-              Plant.id API Key (Free Tier)
-              <input 
-                type="text" 
-                value={apiKey} 
-                onChange={e => { setApiKey(e.target.value); localStorage.setItem("plantid_apikey", e.target.value); }} 
-                placeholder="Enter your API key here for live results..." 
-                style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }} 
-              />
-              <small style={{ color: '#6b7280', fontWeight: 'normal' }}>Leave blank to test with mock offline data.</small>
-            </label>
-          </div>
           <div style={{ marginBottom: '1rem' }}>
             <label className="auth-label">Upload Plant Image <span className="required">*</span></label>
             <div style={{ border: '2px dashed #d1d5db', borderRadius: '8px', padding: '2rem', textAlign: 'center', backgroundColor: '#f9fafb', marginTop: '0.5rem', cursor: 'pointer', position: 'relative' }}>
@@ -1753,7 +1954,7 @@ export function PestDisease() {
           {error && <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
 
           <button className="button" onClick={analyzePlant} disabled={loading || !image} style={{ width: '100%', justifyContent: 'center' }}>
-            {loading ? <><Loader2 className="animate-spin" size={16} /> Analyzing with AI...</> : <><Sparkles size={16} /> Identify Disease</>}
+            {loading ? <><Loader2 className="animate-spin" size={16} /> Analyzing with Gemini AI...</> : <><Sparkles size={16} /> Identify Disease</>}
           </button>
         </Card>
         
@@ -1784,35 +1985,41 @@ export function PestDisease() {
   );
 }
 
+// ── Upcoming Features (Separated Pages) ────────────────────────────────────
+
 export function Relief() {
-  const [selected, setSelected] = useState("Flood");
-  const docs = ["Identity document", "Land record", "Bank details", "Crop details", "Crop-loss evidence", "Insurance information", "Local authority report"];
-  const [checked, setChecked] = useState<boolean[]>(docs.map(() => false));
   return (
     <main>
-      <Title eyebrow="RECOVERY SUPPORT" title="Relief &amp; claims navigator" copy="Typical checklist only — requirements vary by state, scheme, incident and insurer." />
-      <Card>
-        <label>What happened?
-          <select value={selected} onChange={e => setSelected(e.target.value)}>
-            {["Flood", "Drought", "Hailstorm", "Cyclone", "Pest outbreak", "Crop loss"].map(x => <option key={x}>{x}</option>)}
-          </select>
-        </label>
-        <div className="relief-callout">
-          <ShieldAlert />
-          <div><b>{selected} support checklist</b><p>Document field condition promptly and contact the appropriate local agriculture office or insurer.</p></div>
-        </div>
-        <h3>Typical supporting documents</h3>
-        {docs.map((x, i) => (
-          <label className="task" key={x}>
-            <input type="checkbox" checked={checked[i]} onChange={() => setChecked(checked.map((v, j) => i === j ? !v : v))} />
-            <span>{x}</span>
-          </label>
-        ))}
-        <button className="button"><FileUp size={16} /> Generate checklist</button>
+      <Title eyebrow="FUTURE RELEASES" title="Relief & Claims" copy="We are working closely with government partners to bring PMFBY integrations directly to your dashboard." />
+      <Card className="empty-state" style={{ padding: '4rem 2rem', border: '2px dashed #d1d5db', backgroundColor: '#f9fafb' }}>
+        <ShieldAlert size={48} color="#16a34a" style={{ margin: '0 auto', marginBottom: '1.5rem' }} />
+        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#111827' }}>Relief & Claims Navigator</h2>
+        <p style={{ color: '#4b5563', fontSize: '1rem', maxWidth: '600px', margin: '0 auto', marginBottom: '2rem', lineHeight: '1.6' }}>
+          Direct integration with PMFBY (Pradhan Mantri Fasal Bima Yojana) to seamlessly file crop loss claims, upload geotagged damage photos, and track government relief funds straight from your dashboard.
+        </p>
+        <Badge level="COMING SOON" />
       </Card>
     </main>
   );
 }
+
+export function SoilTesting() {
+  return (
+    <main>
+      <Title eyebrow="FUTURE RELEASES" title="Soil Testing & Research" copy="Connect your farm directly to ICAR-approved laboratories for scientific analysis." />
+      <Card className="empty-state" style={{ padding: '4rem 2rem', border: '2px dashed #d1d5db', backgroundColor: '#f9fafb' }}>
+        <TestTube size={48} color="#d97706" style={{ margin: '0 auto', marginBottom: '1.5rem' }} />
+        <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: '#111827' }}>Soil Testing Courier</h2>
+        <p style={{ color: '#4b5563', fontSize: '1rem', maxWidth: '600px', margin: '0 auto', marginBottom: '2rem', lineHeight: '1.6' }}>
+          Book a doorstep courier pickup for your field's soil samples. Send them directly to approved research labs and automatically receive a digital Soil Health Card with precise fertilizer recommendations.
+        </p>
+        <Badge level="COMING SOON" />
+      </Card>
+    </main>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 
 export function Notifications() {
   const [read, setRead] = useState<number[]>([]);

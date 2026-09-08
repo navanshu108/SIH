@@ -2,13 +2,13 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { Layout } from './components/Layout';
 import AgriRecoverChatbot from './components/AgriRecoverChatbot'; 
 
-// 1. Import the new Post-Flood Assessment page
 import PostFloodAssessment from './pages/PostFloodAssessment'; 
 
 import {
   CropAdvisor, CropDetails, CropLibrary, Dashboard,
   DisasterPlaybooks, GenericPage, LocationSelect, Login, Mandi,
   MyFarm, Notifications, PestDisease, Relief, RiskRadar, Schemes, Weather,
+  SoilTesting // 1. Added SoilTesting Import here
 } from './pages/KisanPages'; 
 
 /** Redirects to /login if the user has never completed onboarding. */
@@ -56,8 +56,10 @@ export default function App() {
             <Route path="/login"             element={<Login />} />
             <Route path="/location"          element={<LocationSelect />} />
             
-            {/* 2. Added the new assessment route */}
             <Route path="/post-flood-assessment" element={<PostFloodAssessment />} /> 
+
+            {/* 2. Added the new Soil Testing Route here */}
+            <Route path="/soil-testing"      element={<SoilTesting />} />
 
             <Route path="/assistant"         element={<AgriRecoverChatbot />} /> 
           </Routes>

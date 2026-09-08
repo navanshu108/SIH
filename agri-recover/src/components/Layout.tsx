@@ -1,4 +1,4 @@
-import { Bell, Bot, ChevronLeft, CloudSun, Droplets, FileHeart, LayoutDashboard, Leaf, Menu, Search, ShieldAlert, Sprout, Store, Wheat } from "lucide-react";
+import { Bell, Bot, ChevronLeft, CloudSun, Droplets, FileHeart, LayoutDashboard, Leaf, Menu, Search, ShieldAlert, Sprout, Store, Wheat, TestTube } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { useState } from "react";
 
@@ -29,6 +29,9 @@ export function Layout({children}:{children:React.ReactNode}) {
           
           <NavLink to="/relief" onClick={()=>setOpen(false)}><FileHeart size={18}/>Relief & Claims</NavLink>
           <NavLink to="/pest-disease" onClick={()=>setOpen(false)}><Leaf size={18}/>Pest & Disease</NavLink>
+          
+          {/* Added Soil Testing Link */}
+          <NavLink to="/soil-testing" onClick={()=>setOpen(false)}><TestTube size={18}/>Soil Testing</NavLink>
         </nav>
         <div className="offline">
           <span/> {navigator.onLine?'Online · cached data ready':'Offline ready'}<br/><small>Last synced 10 min ago</small>
