@@ -6,9 +6,10 @@ import {
   Sprout, ThermometerSun, Upload, Volume2, Wind, X, Loader2, LogOut, Store
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { alerts, diagnosePlant, mandi, schemes } from "../services/mockServices";
+import { alerts, mandi, schemes, diagnosePlant } from "../services/mockServices";
 import { askAssistant } from "../services/assistantService";
-import { getLiveContext, getLiveContextForLocation, getSavedLocationContext, type LiveContext } from "../services/liveContextService";
+import { getLiveContext, getLiveContextForLocation, getSavedLocationContext, reverseGeocode, type LiveContext } from "../services/liveContextService";
+import { LocationMap } from "../components/LocationMap";
 
 // ── Complete India State & District Database ───────────────────────────
 const indiaData: Record<string, string[]> = {
@@ -1025,7 +1026,7 @@ export function Login() {
                   value={name}
                   onChange={e => { setName(e.target.value); setErrors1({}); }}
                   placeholder={mode === "guest" ? "e.g. Guest Farmer" : "e.g. Ramesh Patel"}
-                  required
+                  required={mode !== "signin"}
                 />
                 {errors1.name && <span className="field-error">{errors1.name}</span>}
               </label>
@@ -1364,6 +1365,7 @@ export function Mandi() {
   const [stateName, setStateName] = useState("Madhya Pradesh");
   const [district, setDistrict] = useState("Seoni");
   const [commodity, setCommodity] = useState("Soyabean");
+  const [marketSearch, setMarketSearch] = useState("");
   const [prices, setPrices] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -1378,7 +1380,7 @@ export function Mandi() {
         const potentialState = parts[parts.length - 1];
         const potentialDistrict = parts[parts.length - 2];
         
-        if (indiaData[potentialState]) {
+        if (indiaData && indiaData[potentialState]) {
           setStateName(potentialState);
           if (indiaData[potentialState].includes(potentialDistrict)) {
             setDistrict(potentialDistrict);
@@ -1395,33 +1397,46 @@ export function Mandi() {
     setError("");
     try {
       const apiKey = "579b464db66ec23bdd000001cdd3946e44ce4aad7209ff7b23ac571b";
-      const url = `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=${apiKey}&format=json&limit=100&filters[state]=${stateName}&filters[district]=${district}`;
+      const targetUrl = `https://api.data.gov.in/resource/9ef84268-d588-465a-a308-a864a43d0070?api-key=${apiKey}&format=json&limit=100&filters[state]=${stateName}&filters[district]=${district}`;
       
-      const res = await fetch(url);
+      // Using AllOrigins CORS proxy to bypass browser restrictions on the frontend
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      
+      const res = await fetch(proxyUrl);
       if (!res.ok) throw new Error("API Error");
-      const data = await res.json();
+      
+      const proxyData = await res.json();
+      const data = JSON.parse(proxyData.contents);
       
       if (data.records && data.records.length > 0) {
         let filtered = data.records;
         if (commodity !== "All") {
-          filtered = data.records.filter((r: any) => r.commodity.toLowerCase().includes(commodity.toLowerCase().split(' ')[0]));
+          filtered = data.records.filter((r: any) => 
+            r.commodity.toLowerCase().includes(commodity.toLowerCase().split(' ')[0])
+          );
         }
         
         if (filtered.length > 0) {
+          filtered.sort((a: any, b: any) => b.modal_price - a.modal_price);
           setPrices(filtered);
           setLoading(false);
           return;
         }
       }
+      
       throw new Error("No recent data");
-    } catch (err) {
+      
+    } catch (err: any) {
       setTimeout(() => {
         const basePrice = commodity === "Soyabean" ? 4650 : commodity === "Wheat" ? 2300 : commodity === "Maize" ? 2150 : commodity === "Cotton" ? 7200 : 3500;
         setPrices([
           { market: `${district} Main APMC`, commodity: commodity, min_price: basePrice - 150, max_price: basePrice + 200, modal_price: basePrice, arrival_date: new Date().toLocaleDateString("en-GB") },
           { market: `${district} Rural Mandi`, commodity: commodity, min_price: basePrice - 200, max_price: basePrice + 100, modal_price: basePrice - 50, arrival_date: new Date().toLocaleDateString("en-GB") }
         ]);
-        setError("Live Agmarknet server unreachable. Displaying cached/estimated local prices.");
+        
+        setError(err.message === "No recent data" 
+          ? `No live records found for ${commodity} in ${district} today. Showing historical estimates.`
+          : "Could not fetch live data. Displaying offline estimates.");
         setLoading(false);
       }, 800);
     }
@@ -1432,9 +1447,20 @@ export function Mandi() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stateName, district, commodity]);
 
+  const displayedPrices = prices.filter(p => p.market.toLowerCase().includes(marketSearch.toLowerCase()));
+  
+  const avgPrice = displayedPrices.length > 0 
+    ? Math.round(displayedPrices.reduce((acc, curr) => acc + Number(curr.modal_price), 0) / displayedPrices.length) 
+    : 0;
+
+  const chartData = displayedPrices.slice(0, 7).map(p => ({
+    market: p.market.length > 10 ? p.market.substring(0, 10) + '...' : p.market,
+    price: Number(p.modal_price)
+  }));
+
   return (
     <main>
-      <Title eyebrow="MARKET INTELLIGENCE" title="Live Mandi Prices" copy="Powered by Government of India (Agmarknet) Open Data." />
+      <Title eyebrow="MARKET INTELLIGENCE" title="Live Mandi Prices" copy="Powered by Government of India (Agmarknet) Open Data. Prices are updated based on local APMC uploads." />
       
       <Card className="mandi-top">
         <div className="form-grid" style={{ marginBottom: '1.5rem' }}>
@@ -1459,46 +1485,421 @@ export function Mandi() {
           </label>
         </div>
 
-        {error && <div style={{ backgroundColor: '#fff7ed', color: '#c2410c', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><AlertTriangle size={16}/> {error}</div>}
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: '1rem' }}>
+           <div style={{ flex: 1, minWidth: '200px' }}>
+              <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase' }}>District Average ({commodity})</span>
+              <b style={{ display: 'block', fontSize: '1.8rem', color: '#111827' }}>₹{avgPrice > 0 ? avgPrice : "---"} <small style={{ fontSize: '1rem', color: '#6b7280', fontWeight: 'normal' }}>/ quintal</small></b>
+           </div>
+           <div style={{ flex: 1, minWidth: '200px' }}>
+              <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                Filter by Market (APMC)
+                <input 
+                  placeholder="e.g. Krishi Upaj Mandi" 
+                  value={marketSearch} 
+                  onChange={e => setMarketSearch(e.target.value)} 
+                  style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }}
+                />
+              </label>
+           </div>
+        </div>
+      </Card>
 
-        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}><Loader2 className="animate-spin" style={{ margin: '0 auto', marginBottom: '1rem' }} size={32} /> Fetching live prices from Agmarknet...</div>
-          ) : prices.length > 0 ? (
-            prices.map((p, i) => (
-              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1.25rem', backgroundColor: '#f9fafb' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
-                  <b style={{ color: '#111827', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Store size={18} color="#16a34a"/> {p.market}</b>
-                  <Badge level="LIVE" />
-                </div>
-                <div style={{ marginBottom: '1rem' }}>
-                  <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Commodity</span>
-                  <p style={{ margin: 0, fontWeight: 'bold', color: '#374151', fontSize: '1.1rem' }}>{p.commodity}</p>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', textAlign: 'center' }}>
-                  <div style={{ backgroundColor: '#fff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e5e7eb' }}><small style={{ color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Min Price</small><b style={{ color: '#ef4444' }}>₹{p.min_price}</b></div>
-                  <div style={{ backgroundColor: '#dcfce7', padding: '0.75rem', borderRadius: '6px', border: '1px solid #bbf7d0' }}><small style={{ color: '#166534', display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Modal Price</small><b style={{ color: '#16a34a', fontSize: '1.2rem' }}>₹{p.modal_price}</b><small style={{ display: 'block', fontSize: '0.7rem', color: '#166534' }}>/ quintal</small></div>
-                  <div style={{ backgroundColor: '#fff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e5e7eb' }}><small style={{ color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Max Price</small><b style={{ color: '#3b82f6' }}>₹{p.max_price}</b></div>
-                </div>
-                <div style={{ marginTop: '0.75rem', textAlign: 'right', fontSize: '0.75rem', color: '#9ca3af' }}>
-                  Arrival Date: {p.arrival_date}
-                </div>
+      {error && <div style={{ backgroundColor: '#fff7ed', color: '#c2410c', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><AlertTriangle size={16}/> {error}</div>}
+
+      {chartData.length > 0 && !loading && (
+        <Card>
+          <div className="card-head"><div><span className="eyebrow">PRICE COMPARISON</span><h3>{commodity} across {district}</h3></div></div>
+          <div className="chart large">
+            <ResponsiveContainer>
+              <BarChart data={chartData}>
+                <XAxis dataKey="market" tick={{fontSize: 12}} interval={0} />
+                <YAxis domain={["dataMin - 200", "dataMax + 200"]} tick={{fontSize: 12}} />
+                <Tooltip cursor={{fill: '#f3f4f6'}} formatter={(v) => [`₹${v}`, "Modal Price"]} />
+                <Bar dataKey="price" fill="#166534" radius={[4, 4, 0, 0]} barSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}><Loader2 className="animate-spin" style={{ margin: '0 auto', marginBottom: '1rem' }} size={32} /> Fetching live prices from Agmarknet...</div>
+        ) : displayedPrices.length > 0 ? (
+          displayedPrices.map((p, i) => (
+            <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: '8px', padding: '1.25rem', backgroundColor: '#f9fafb' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
+                <b style={{ color: '#111827', fontSize: '1.1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Store size={18} color="#16a34a"/> {p.market}</b>
+                <Badge level="LIVE" />
               </div>
-            ))
-          ) : (
-            <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>No prices found for the selected criteria. Try changing the commodity or district.</div>
-          )}
+              <div style={{ marginBottom: '1rem' }}>
+                <span style={{ fontSize: '0.85rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Commodity</span>
+                <p style={{ margin: 0, fontWeight: 'bold', color: '#374151', fontSize: '1.1rem' }}>{p.commodity}</p>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', textAlign: 'center' }}>
+                <div style={{ backgroundColor: '#fff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e5e7eb' }}><small style={{ color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Min Price</small><b style={{ color: '#ef4444' }}>₹{p.min_price}</b></div>
+                <div style={{ backgroundColor: '#dcfce7', padding: '0.75rem', borderRadius: '6px', border: '1px solid #bbf7d0' }}><small style={{ color: '#166534', display: 'block', marginBottom: '0.25rem', fontWeight: 600 }}>Modal Price</small><b style={{ color: '#16a34a', fontSize: '1.2rem' }}>₹{p.modal_price}</b><small style={{ display: 'block', fontSize: '0.7rem', color: '#166534' }}>/ quintal</small></div>
+                <div style={{ backgroundColor: '#fff', padding: '0.75rem', borderRadius: '6px', border: '1px solid #e5e7eb' }}><small style={{ color: '#6b7280', display: 'block', marginBottom: '0.25rem' }}>Max Price</small><b style={{ color: '#3b82f6' }}>₹{p.max_price}</b></div>
+              </div>
+              <div style={{ marginTop: '0.75rem', textAlign: 'right', fontSize: '0.75rem', color: '#9ca3af' }}>
+                Arrival Date: {p.arrival_date}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{ textAlign: 'center', padding: '3rem', color: '#6b7280' }}>No prices found for the selected criteria. Try changing the commodity or district.</div>
+        )}
+      </div>
+    </main>
+  );
+}
+
+export function Schemes() {
+  return (
+    <main>
+      <Title eyebrow="OFFICIAL ASSISTANCE" title="Government scheme navigator" copy="Explore commonly referenced programmes. Always confirm eligibility, dates and portals through authorised sources." />
+      <div className="scheme-grid">
+        {schemes.map(s => (
+          <Card key={s.name} className="scheme">
+            <span className="scheme-icon">🏛</span>
+            <h3>{s.name}</h3>
+            <p>{s.benefit}</p>
+            <div><b>Typical documents</b><span>{s.docs}</span></div>
+            <a className="button secondary" href={s.url} target="_blank" rel="noreferrer">{s.status} ↗</a>
+          </Card>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+export function DisasterPlaybooks() {
+  const [kind, setKind] = useState("Flood");
+  const data: Record<string, string[]> = {
+    Flood: ["Clear drains and move equipment to higher ground.", "Do not enter fast-moving water or apply fertiliser before assessment.", "After water recedes, document loss and inspect crop roots."],
+    Drought: ["Prioritise irrigation for critical growth stages.", "Do not apply fertiliser to severely moisture-stressed crops.", "Use mulch and follow local water scheduling guidance."],
+    Heatwave: ["Irrigate early morning when suitable.", "Do not spray in peak heat.", "Provide shade or water access for livestock."],
+    Hailstorm: ["Move available harvested produce under cover.", "Do not rush to prune damaged crops immediately.", "Photograph losses and contact local authorities."],
+  };
+  return (
+    <main>
+      <Title eyebrow="EMERGENCY GUIDES" title="Disaster playbooks" copy="Simple action lists that remain available offline. Follow local emergency instructions first." />
+      <div className="tabs">
+        {Object.keys(data).map(x => <button className={kind === x ? "selected" : ""} key={x} onClick={() => setKind(x)}>{x}</button>)}
+      </div>
+      <Card className="playbook">
+        <Badge level="PRIORITY NOW" />
+        <h2>{kind} response guide</h2>
+        {data[kind].map((x, i) => <div className="play-step" key={x}><b>0{i + 1}</b><p>{x}</p></div>)}
+        <div className="materials"><b>Keep ready</b><span>Phone/camera · field record · clean water · local helpline details</span></div>
+      </Card>
+    </main>
+  );
+}
+
+// ── Pest & Disease (Plant.id Integration) ──────────────────────────────────
+export function PestDisease() {
+  const [image, setImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [apiKey, setApiKey] = useState(localStorage.getItem("plantid_apikey") || "");
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImage(file);
+      setImagePreview(URL.createObjectURL(file));
+      setResult(null); 
+    }
+  };
+
+  const analyzePlant = async () => {
+    if (!image) {
+      setError("Please upload an image of the affected plant first.");
+      return;
+    }
+    
+    setLoading(true);
+    setError("");
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(image);
+      reader.onloadend = async () => {
+        const base64Image = (reader.result as string).split(',')[1];
+
+        if (!apiKey || apiKey.trim() === "") {
+          // Fallback demo data
+          setTimeout(() => {
+            setResult({
+              name: "Yellow Mosaic Virus",
+              confidence: 92,
+              symptoms: "Yellowing of leaves, stunted growth, and reduced pod formation.",
+              immediate: "Remove and destroy infected plants immediately to prevent spread.",
+              organic: "Control whitefly vectors using Neem oil (3ml/L). Use yellow sticky traps.",
+              chemical: "Spray Imidacloprid 17.8 SL @ 0.3 ml/L or Thiamethoxam 25 WG @ 0.2 g/L."
+            });
+            setLoading(false);
+          }, 2000);
+          return;
+        }
+
+        // Live API Call to Plant.id Free Tier
+        try {
+          const response = await fetch('https://api.plant.id/v2/health_assessment', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Api-Key': apiKey.trim(),
+            },
+            body: JSON.stringify({
+              images: [base64Image],
+              modifiers: ["crops_fast", "similar_images"],
+              disease_details: ["description", "treatment"]
+            }),
+          });
+
+          if (!response.ok) {
+             const errData = await response.json();
+             throw new Error(errData.message || "API request failed");
+          }
+          const data = await response.json();
+          
+          if (data.health_assessment && data.health_assessment.is_healthy_probability > 0.6) {
+             setResult({
+               name: "Healthy Plant",
+               confidence: Math.round(data.health_assessment.is_healthy_probability * 100),
+               symptoms: "No significant diseases detected in the uploaded image.",
+               immediate: "Continue standard management.",
+               organic: "Maintain good soil health.",
+               chemical: "None required."
+             });
+          } else if (data.health_assessment && data.health_assessment.diseases && data.health_assessment.diseases.length > 0) {
+             const disease = data.health_assessment.diseases[0];
+             const treatment = disease.disease_details?.treatment || {};
+             
+             setResult({
+               name: disease.name,
+               confidence: Math.round(disease.probability * 100),
+               symptoms: disease.disease_details?.description || "Visual symptoms detected matching this disease.",
+               immediate: "Isolate the plant if possible. Remove heavily infected leaves.",
+               organic: treatment.biological?.join(", ") || "Use appropriate organic fungicides/insecticides.",
+               chemical: treatment.chemical?.join(", ") || "Consult local agro-dealer for specific chemical treatments."
+             });
+          } else {
+             setResult({
+               name: "Unknown Condition",
+               confidence: 0,
+               symptoms: "Could not accurately determine the disease.",
+               immediate: "Consult a local agricultural expert.",
+               organic: "N/A",
+               chemical: "N/A"
+             });
+          }
+          setLoading(false);
+        } catch (err: any) {
+          console.error(err);
+          setError("Plant.id API Error: " + err.message + ". Check your API key.");
+          setLoading(false);
+        }
+      };
+    } catch (err) {
+      console.error(err);
+      setError("Failed to process image.");
+      setLoading(false);
+    }
+  };
+
+  return (
+    <main>
+      <Title eyebrow="AI DIAGNOSTICS" title="Pest & Disease Center" copy="Upload a photo of your sick plant. Powered by Plant.id API for accurate disease identification and treatment." />
+      <div className="diagnose">
+        <Card>
+          <div style={{ marginBottom: '1rem' }}>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>
+              Plant.id API Key (Free Tier)
+              <input 
+                type="text" 
+                value={apiKey} 
+                onChange={e => { setApiKey(e.target.value); localStorage.setItem("plantid_apikey", e.target.value); }} 
+                placeholder="Enter your API key here for live results..." 
+                style={{ padding: '0.5rem', borderRadius: '6px', border: '1px solid #d1d5db' }} 
+              />
+              <small style={{ color: '#6b7280', fontWeight: 'normal' }}>Leave blank to test with mock offline data.</small>
+            </label>
+          </div>
+          <div style={{ marginBottom: '1rem' }}>
+            <label className="auth-label">Upload Plant Image <span className="required">*</span></label>
+            <div style={{ border: '2px dashed #d1d5db', borderRadius: '8px', padding: '2rem', textAlign: 'center', backgroundColor: '#f9fafb', marginTop: '0.5rem', cursor: 'pointer', position: 'relative' }}>
+              <input 
+                type="file" 
+                accept="image/*" 
+                onChange={handleImageChange} 
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+              />
+              {imagePreview ? (
+                <img src={imagePreview} alt="Plant preview" style={{ maxHeight: '200px', margin: '0 auto', borderRadius: '8px' }} />
+              ) : (
+                <div style={{ color: '#6b7280' }}>
+                  <Upload size={32} style={{ margin: '0 auto', marginBottom: '0.5rem' }} />
+                  <p>Tap to upload a clear photo of the affected leaf or plant</p>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {error && <div style={{ backgroundColor: '#fee2e2', color: '#b91c1c', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>}
+
+          <button className="button" onClick={analyzePlant} disabled={loading || !image} style={{ width: '100%', justifyContent: 'center' }}>
+            {loading ? <><Loader2 className="animate-spin" size={16} /> Analyzing with AI...</> : <><Sparkles size={16} /> Identify Disease</>}
+          </button>
+        </Card>
+        
+        {result && (
+          <Card className="result">
+            <div className="card-head" style={{ marginBottom: '1rem' }}>
+              <div>
+                <span className="eyebrow">ANALYSIS RESULT</span>
+                <h2 style={{ fontSize: '1.5rem', color: '#111827' }}>{result.name}</h2>
+              </div>
+              <Badge level={result.confidence > 80 ? "HIGH CONFIDENCE" : "POSSIBLE MATCH"} />
+            </div>
+            
+            <p style={{ color: '#4b5563', marginBottom: '1.5rem', lineHeight: '1.6' }}><strong>Symptoms:</strong> {result.symptoms}</p>
+            
+            <h4 style={{ color: '#b91c1c', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><AlertTriangle size={16}/> Immediate Action</h4>
+            <p style={{ marginBottom: '1rem', fontSize: '0.95rem' }}>{result.immediate}</p>
+            
+            <h4 style={{ color: '#166534', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Leaf size={16}/> Organic / Biological Treatment</h4>
+            <p style={{ marginBottom: '1rem', fontSize: '0.95rem' }}>{result.organic}</p>
+            
+            <h4 style={{ color: '#ea580c', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Droplets size={16}/> Chemical Treatment</h4>
+            <p style={{ fontSize: '0.95rem' }}>{result.chemical}</p>
+          </Card>
+        )}
+      </div>
+    </main>
+  );
+}
+
+export function Relief() {
+  const [selected, setSelected] = useState("Flood");
+  const docs = ["Identity document", "Land record", "Bank details", "Crop details", "Crop-loss evidence", "Insurance information", "Local authority report"];
+  const [checked, setChecked] = useState<boolean[]>(docs.map(() => false));
+  return (
+    <main>
+      <Title eyebrow="RECOVERY SUPPORT" title="Relief &amp; claims navigator" copy="Typical checklist only — requirements vary by state, scheme, incident and insurer." />
+      <Card>
+        <label>What happened?
+          <select value={selected} onChange={e => setSelected(e.target.value)}>
+            {["Flood", "Drought", "Hailstorm", "Cyclone", "Pest outbreak", "Crop loss"].map(x => <option key={x}>{x}</option>)}
+          </select>
+        </label>
+        <div className="relief-callout">
+          <ShieldAlert />
+          <div><b>{selected} support checklist</b><p>Document field condition promptly and contact the appropriate local agriculture office or insurer.</p></div>
+        </div>
+        <h3>Typical supporting documents</h3>
+        {docs.map((x, i) => (
+          <label className="task" key={x}>
+            <input type="checkbox" checked={checked[i]} onChange={() => setChecked(checked.map((v, j) => i === j ? !v : v))} />
+            <span>{x}</span>
+          </label>
+        ))}
+        <button className="button"><FileUp size={16} /> Generate checklist</button>
+      </Card>
+    </main>
+  );
+}
+
+export function Notifications() {
+  const [read, setRead] = useState<number[]>([]);
+  const notes = [
+    { title: "Task reminder", body: "Inspect soybean leaves today.", priority: "MODERATE" },
+    { title: "Scheme update", body: "Review PM Fasal Bima details before the local window closes.", priority: "LOW" },
+  ];
+  return (
+    <main>
+      <Title eyebrow="ALERT CENTRE" title="Notifications" copy="Priority signals, farm reminders and service updates stored on this device." />
+      <div className="notification-list">
+        {notes.map((n, i) => (
+          <button className={"notification " + (read.includes(i) ? "read" : "")} key={n.title} onClick={() => setRead([...read, i])}>
+            <Badge level={n.priority} />
+            <div><h3>{n.title}</h3><p>{n.body}</p></div>
+            {!read.includes(i) && <i>New</i>}
+          </button>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+export function Assistant() {
+  const [messages, setMessages] = useState([{ from: "ai", text: "Namaste Ramesh. I can help with your farm, weather, crop health, market and scheme questions." }]);
+  const [input, setInput] = useState("");
+  const [voice, setVoice] = useState(false);
+  const [context, setContext] = useState<LiveContext>();
+  const [loading, setLoading] = useState(false);
+  async function refresh() { setLoading(true); setContext(await getLiveContext()); setLoading(false); }
+  async function send(q = input) {
+    if (!q.trim()) return;
+    setMessages(m => [...m, { from: "user", text: q }]);
+    setInput("");
+    setLoading(true);
+    try {
+      const answer = await askAssistant(q, context);
+      setMessages(m => [...m, { from: "ai", text: answer }]);
+    } catch {
+      setMessages(m => [...m, { from: "ai", text: "I could not reach the online assistant. Please try again or use saved advisory information." }]);
+    } finally { setLoading(false); }
+  }
+  return (
+    <main className="assistant-page">
+      <Title eyebrow="YOUR FARM COMPANION" title="Kisan Mitra AI" copy="General agricultural guidance only. For severe disease, pesticide use or major crop loss, consult a qualified expert or local agriculture office." />
+      <Card className="live-context">
+        <div>
+          <b>{context?.source === "live" ? "Live location context enabled" : "Use local conditions"}</b>
+          <span>{context?.source === "live" ? `${context.location} · ${context.temperature}°C · ${context.rainProbability}% rain chance` : "Allow location to give the assistant current-area weather context."}</span>
+        </div>
+        <button className="button secondary" onClick={refresh}>{loading ? "Updating…" : "Use my location"}</button>
+      </Card>
+      <Card className="chat">
+        <div className="chat-head">
+          <span className="ai-avatar"><Bot /></span>
+          <div><b>Kisan Mitra</b><small><i /> {import.meta.env.VITE_ASSISTANT_API_URL ? "Online AI connected" : "Local guidance mode"}</small></div>
+          <button className="icon" onClick={() => setMessages([])} aria-label="Clear chat">×</button>
+        </div>
+        <div className="messages">
+          {messages.map((m, i) => <div className={"message " + m.from} key={i}>{m.text}</div>)}
+          {loading && <div className="message ai">Kisan Mitra is checking…</div>}
+        </div>
+        <div className="prompts">
+          {["Will rain affect my crop?", "How do I spot yellow mosaic?", "Show schemes for me"].map(x => (
+            <button key={x} onClick={() => send(x)}>{x}</button>
+          ))}
+        </div>
+        <div className="chat-input">
+          <button className={voice ? "recording" : "icon"} onClick={() => setVoice(!voice)} aria-label="Voice input"><Mic size={19} /></button>
+          <input value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && send()} placeholder={voice ? "Listening…" : "Ask about your farm"} />
+          <button className="icon" aria-label="Read guidance aloud"><Volume2 size={19} /></button>
+          <button className="send" onClick={() => send()} aria-label="Send"><Send size={18} /></button>
         </div>
       </Card>
     </main>
   );
 }
 
-// ── Dummy exports for unchanged pages to prevent routing errors ────────────
-export function Relief() { return <main><Title eyebrow="RELIEF" title="Relief Claims" copy="Relief view" /></main>; }
-export function Notifications() { return <main><Title eyebrow="ALERTS" title="Notifications" copy="Alert view" /></main>; }
-export function GenericPage({ title }: { title: string }) { return <main><Title eyebrow="PAGE" title={title} copy="Generic view" /></main>; }
-export function Assistant() { return <main><Title eyebrow="AI" title="Assistant" copy="Assistant view" /></main>; }
-export function Schemes() { return <main><Title eyebrow="SCHEMES" title="Govt Schemes" copy="Scheme view" /></main>; }
-export function DisasterPlaybooks() { return <main><Title eyebrow="DISASTER" title="Playbooks" copy="Playbook view" /></main>; }
-export function PestDisease() { return <main><Title eyebrow="PEST" title="Disease Center" copy="Disease view" /></main>; }
+export function GenericPage({ title }: { title: string }) {
+  return (
+    <main>
+      <Title eyebrow="KISANSETU" title={title} copy="This prototype page is ready for your account-specific information and service integrations." />
+      <Card className="empty-state">
+        <Sparkles size={34} /><h2>Ready to personalise</h2>
+        <p>Connect verified local data and complete your farm profile to continue.</p>
+        <Link className="button" to="/my-farm">Open My Farm</Link>
+      </Card>
+    </main>
+  );
+}
