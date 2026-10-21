@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import {
-  AlertTriangle, ArrowRight, Search, Bot, Check, ChevronRight, CloudRain, Droplets,
+  AlertTriangle, ArrowRight, Search, Bot, Check, CloudRain, Droplets,
   FileUp, Leaf, MapPin, Mic, Plus, Send, ShieldAlert, Sparkles,
   Sprout, ThermometerSun, Upload, Volume2, Eye, EyeOff, Wind, X, Loader2, LogOut, Store,
   Trash2, Calendar, TestTube
 } from "lucide-react";
+import { useLanguage } from "../i18n/LanguageContext";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, LineChart, Line } from "recharts";
 import { alerts, mandi, schemes } from "../services/mockServices";
 import { askAssistant } from "../services/assistantService";
@@ -198,18 +199,19 @@ function Metric({ icon, label, value, detail, tone }: { icon: React.ReactNode; l
     </div>
   );
 }
-
 // ── Dashboard (Dynamic Spatial Map Update) ────────────────────────────────
 export function Dashboard() {
   const [done, setDone] = useState([false, false, false]);
   const [wx, setWx] = useState<LiveContext | null>(null);
-  const [lang, setLang] = useState<"en" | "hi">("en");
-  
   const [fields, setFields] = useState<any[]>([]);
+
+  // Use global language context instead of local state
+  const { lang } = useLanguage();
 
   const userName = localStorage.getItem("kisansetu_name") || "Farmer";
   const now = new Date();
   
+  // Greeting adapts automatically to the global language toggle
   const greeting = lang === "hi" 
     ? (now.getHours() < 12 ? "सुप्रभात" : now.getHours() < 17 ? "नमस्कार" : "शुभ संध्या") 
     : (now.getHours() < 12 ? "Good morning" : now.getHours() < 17 ? "Good afternoon" : "Good evening");
@@ -244,17 +246,11 @@ export function Dashboard() {
   return (
     <main style={{ maxWidth: '1400px', margin: '0 auto' }}>
       
-      {/* Clean Welcome Header without the "Primary Crop" text */}
+      {/* Clean Welcome Header without duplicate language buttons */}
       <div style={{ background: 'linear-gradient(to right, #16a34a, #059669)', borderRadius: '24px', padding: '40px', color: 'white', marginBottom: '30px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '20px', boxShadow: '0 10px 25px -5px rgba(22, 163, 74, 0.4)' }}>
         <div>
           <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, letterSpacing: '1px', opacity: 0.9 }}>{dayStr}</p>
           <h1 style={{ fontSize: '48px', fontWeight: 800, margin: '10px 0', letterSpacing: '-1px' }}>{greeting}, {userName} <span>👋</span></h1>
-        </div>
-        <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
-          <div style={{ background: 'rgba(255,255,255,0.2)', padding: '6px', borderRadius: '12px', display: 'flex', gap: '4px', backdropFilter: 'blur(10px)' }}>
-            <button style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: lang === 'en' ? '#fff' : 'transparent', color: lang === 'en' ? '#166534' : '#fff', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setLang('en')}>EN</button>
-            <button style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', background: lang === 'hi' ? '#fff' : 'transparent', color: lang === 'hi' ? '#166534' : '#fff', fontSize: '13px', fontWeight: 'bold', cursor: 'pointer' }} onClick={() => setLang('hi')}>HI</button>
-          </div>
         </div>
       </div>
       
@@ -272,7 +268,6 @@ export function Dashboard() {
       <div className="metrics" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '2rem' }}>
         <Metric icon={<CloudRain size={28}/>} label="Weather" value={wx ? `${wx.temperature}°` : "–"} detail={wx ? `Rain likely · ${wx.rainProbability}%` : "Set location"} tone="blue" />
         <Metric icon={<Droplets size={28}/>} label="Humidity" value={wx ? `${wx.humidity}%` : "–"} detail={wx ? `Feels like ${wx.feelsLike}°C` : "Set location"} tone="blue" />
-        {/* Dynamic Fields count metric replacing Crop Health */}
         <Metric icon={<Sprout size={28}/>} label="Active Fields" value={(fields?.length || 0).toString()} detail="Tracking crop cycles" tone="green" />
         <Metric icon={<ShieldAlert size={28}/>} label="Disaster risk" value={riskLevel} detail={riskDetail} tone={riskTone} />
       </div>
@@ -313,7 +308,6 @@ export function Dashboard() {
           )}
         </Card>
         
-        {/* DYNAMIC FIELD HEALTH RENDERER - Shows the fields you actually added */}
         <div style={{ display: 'grid', gap: '1.5rem' }}>
           {(Array.isArray(fields) && fields.length > 0) ? (
              fields.slice(0, 1).map(f => {

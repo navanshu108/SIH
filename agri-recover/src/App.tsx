@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { Layout } from './components/Layout';
+// @ts-expect-error - JSX component without type declaration
 import AgriRecoverChatbot from './components/AgriRecoverChatbot'; 
 
 import PostFloodAssessment from './pages/PostFloodAssessment'; 
@@ -8,8 +9,11 @@ import {
   CropAdvisor, CropDetails, CropLibrary, Dashboard,
   DisasterPlaybooks, GenericPage, LocationSelect, Login, Mandi,
   MyFarm, Notifications, PestDisease, Relief, RiskRadar, Schemes, Weather,
-  SoilTesting // 1. Added SoilTesting Import here
+  SoilTesting 
 } from './pages/KisanPages'; 
+
+// 1. IMPORT THE LANGUAGE PROVIDER
+import { LanguageProvider } from './i18n/LanguageContext';
 
 /** Redirects to /login if the user has never completed onboarding. */
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -33,38 +37,38 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Layout>
-        <RequireAuth>
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard"         element={<Dashboard />} />
-            <Route path="/crop-advisor"      element={<CropAdvisor />} />
-            <Route path="/crops"             element={<CropLibrary />} />
-            <Route path="/crops/:id"         element={<CropDetails />} />
-            <Route path="/weather"           element={<Weather />} />
-            <Route path="/risk-radar"        element={<RiskRadar />} />
-            <Route path="/disaster-playbooks" element={<DisasterPlaybooks />} />
-            <Route path="/pest-disease"      element={<PestDisease />} />
-            <Route path="/mandi"             element={<Mandi />} />
-            <Route path="/schemes"           element={<Schemes />} />
-            <Route path="/insurance"         element={<GenericPage title="Insurance claim assistance" />} />
-            <Route path="/relief"            element={<Relief />} />
-            <Route path="/my-farm"           element={<MyFarm />} />
-            <Route path="/notifications"     element={<Notifications />} />
-            <Route path="/settings"          element={<GenericPage title="Settings" />} />
-            <Route path="/login"             element={<Login />} />
-            <Route path="/location"          element={<LocationSelect />} />
-            
-            <Route path="/post-flood-assessment" element={<PostFloodAssessment />} /> 
-
-            {/* 2. Added the new Soil Testing Route here */}
-            <Route path="/soil-testing"      element={<SoilTesting />} />
-
-            <Route path="/assistant"         element={<AgriRecoverChatbot />} /> 
-          </Routes>
-        </RequireAuth>
-      </Layout>
-    </BrowserRouter>
+    // 2. WRAP THE ENTIRE APP IN THE LANGUAGE PROVIDER
+    <LanguageProvider>
+      <BrowserRouter>
+        <Layout>
+          <RequireAuth>
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard"         element={<Dashboard />} />
+              <Route path="/crop-advisor"      element={<CropAdvisor />} />
+              <Route path="/crops"             element={<CropLibrary />} />
+              <Route path="/crops/:id"         element={<CropDetails />} />
+              <Route path="/weather"           element={<Weather />} />
+              <Route path="/risk-radar"        element={<RiskRadar />} />
+              <Route path="/disaster-playbooks" element={<DisasterPlaybooks />} />
+              <Route path="/pest-disease"      element={<PestDisease />} />
+              <Route path="/mandi"             element={<Mandi />} />
+              <Route path="/schemes"           element={<Schemes />} />
+              <Route path="/insurance"         element={<GenericPage title="Insurance claim assistance" />} />
+              <Route path="/relief"            element={<Relief />} />
+              <Route path="/my-farm"           element={<MyFarm />} />
+              <Route path="/notifications"     element={<Notifications />} />
+              <Route path="/settings"          element={<GenericPage title="Settings" />} />
+              <Route path="/login"             element={<Login />} />
+              <Route path="/location"          element={<LocationSelect />} />
+              
+              <Route path="/post-flood-assessment" element={<PostFloodAssessment />} /> 
+              <Route path="/soil-testing"      element={<SoilTesting />} />
+              <Route path="/assistant"         element={<AgriRecoverChatbot />} /> 
+            </Routes>
+          </RequireAuth>
+        </Layout>
+      </BrowserRouter>
+    </LanguageProvider>
   );
 }

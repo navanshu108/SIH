@@ -167,7 +167,7 @@ input:focus, select:focus { border-color: #16a34a; box-shadow: 0 0 0 3px rgba(22
 .toolbar button.selected { background: #16a34a; color: white; box-shadow: 0 4px 12px rgba(22,163,74,0.3); }
 
 /* Custom Legacy overrides for specific elements not ported to inline styles yet */
-.crop-card { padding: 0; overflow: hidden; display: flex; flexDirection: column; border: none; }
+.crop-card { padding: 0; overflow: hidden; display: flex; flex-direction: column; border: none; }
 .field-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 12px; background: #e7f8ec; color: #167344; flex-shrink: 0; }
 .field h3, .field p { margin: 0; }
 .field p { color: #6b7280; font-size: 14px; margin-top: 4px; }
